@@ -12,6 +12,7 @@ import { DEFAULT_SETTINGS } from './constants';
 import { AliasManager } from './core/AliasManager';
 import { TagAliasesSettingTab } from './ui/SettingTab';
 import { TagAliasSuggest } from './suggest/TagAliasSuggest';
+import { BatchMigration } from './migration/BatchMigration';
 
 export default class TagAliasesPlugin extends Plugin {
     /** Current plugin settings. */
@@ -41,7 +42,15 @@ export default class TagAliasesPlugin extends Plugin {
         // Register auto-replace: detect alias tags and replace with primary tags
         this.registerAutoReplace();
 
-        // TODO: Register migration command (Phase 6)
+        // Register migration command
+        this.addCommand({
+            id: 'migrate-alias-tags',
+            name: 'Scan & replace alias tags in vault',
+            callback: async () => {
+                const migration = new BatchMigration(this.app, this.aliasManager);
+                await migration.run();
+            },
+        });
 
         console.log('[TagAliases] Plugin loaded successfully.');
     }

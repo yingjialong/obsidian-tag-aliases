@@ -13,6 +13,7 @@ import TagAliasesPlugin from '../main';
 import { AliasGroupModal } from './AliasGroupModal';
 import { AliasGroup } from '../types';
 import { PLUGIN_NAME, EXPORT_FILE_NAME } from '../constants';
+import { BatchMigration } from '../migration/BatchMigration';
 
 export class TagAliasesSettingTab extends PluginSettingTab {
     plugin: TagAliasesPlugin;
@@ -170,9 +171,12 @@ export class TagAliasesSettingTab extends PluginSettingTab {
             .addButton(btn => {
                 btn.setButtonText('Scan & Replace')
                     .setWarning()
-                    .onClick(() => {
-                        // TODO: Implement batch migration (Phase 6)
-                        new Notice('Batch migration is not yet implemented.');
+                    .onClick(async () => {
+                        const migration = new BatchMigration(
+                            this.app,
+                            this.plugin.aliasManager,
+                        );
+                        await migration.run();
                     });
             });
     }

@@ -51,6 +51,21 @@ src/
 - Settings stored via `loadData()`/`saveData()` → `data.json`
 - Export/import feature for backup/restore across reinstalls
 
+### Core Data Flow
+
+1. **Startup**: `loadData()` → `AliasManager.buildIndex()` → register EditorSuggest + events + commands
+2. **Tag input**: User types `#` → `TagAliasSuggest.onTrigger()` claims input → `getSuggestions()` merges alias matches + vault tags → `selectSuggestion()` inserts primary tag
+3. **Auto-replace**: `metadataCache.on('changed')` → detect alias tags → regex replace inline + `processFrontMatter` for YAML
+4. **Batch migration**: Scan all files → preview modal → execute replacements
+
+### Key APIs Used
+
+- `EditorSuggest`: intercept tag input suggestions
+- `MetadataCache.getTags()`: get all vault tags (undocumented but stable)
+- `getAllTags()`: get tags from a single file's cache
+- `processFrontMatter()`: modify YAML frontmatter tags
+- `loadData()`/`saveData()`: persist settings to `data.json`
+
 ### Key Dependencies
 
 - `obsidian`: Obsidian API (provided by runtime, external in bundle)

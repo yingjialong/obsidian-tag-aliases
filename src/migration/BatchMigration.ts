@@ -179,7 +179,7 @@ export class BatchMigration {
                         const escapedFrom = from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
                         const regex = new RegExp(
                             `(^|[\\s])${escapedFrom}(?=[\\s,;.!?\\)\\]\\}]|$)`,
-                            'gm',
+                            'gmu',
                         );
                         content = content.replace(regex, `$1${to}`);
                     }

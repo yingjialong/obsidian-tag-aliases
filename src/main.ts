@@ -245,7 +245,6 @@ export default class TagAliasesPlugin extends Plugin {
 
         // Check if the user is actively editing right at the end of a tag
         if (this.isCursorAtTagEnd()) {
-            console.log('[TagAliases] Skipping auto-replace: cursor still at tag end');
             return;
         }
 
@@ -268,15 +267,20 @@ export default class TagAliasesPlugin extends Plugin {
             let content = await this.app.vault.read(file);
 
             // Replace inline tags in content body
+            // Uses 'u' flag for correct Unicode character handling
             for (const { from, to } of replacements) {
                 const escapedFrom = from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
                 // Match the exact tag: preceded by start/whitespace,
                 // followed by whitespace/punctuation/end (tag must be "completed")
                 const regex = new RegExp(
                     `(^|[\\s])${escapedFrom}(?=[\\s,;.!?\\)\\]\\}]|$)`,
-                    'gm',
+                    'gmu',
                 );
-                content = content.replace(regex, `$1${to}`);
+                const newContent = content.replace(regex, `$1${to}`);
+                if (newContent !== content) {
+                    console.log('[TagAliases] Replaced inline:', from, '->', to);
+                }
+                content = newContent;
             }
 
             await this.app.vault.modify(file, content);

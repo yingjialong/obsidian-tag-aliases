@@ -310,7 +310,7 @@ export default class TagAliasesPlugin extends Plugin {
             const textBeforeCursor = line.substring(0, cursor.ch);
 
             // If text before cursor ends with #tag-characters, user is still typing a tag
-            return /\#[\p{L}\p{N}_\-/]+$/u.test(textBeforeCursor);
+            return /#[\p{L}\p{N}_\-/]+$/u.test(textBeforeCursor);
         } catch {
             return false;
         }

@@ -10,6 +10,7 @@ import { Plugin } from 'obsidian';
 import { TagAliasSettings } from './types';
 import { DEFAULT_SETTINGS } from './constants';
 import { AliasManager } from './core/AliasManager';
+import { TagAliasesSettingTab } from './ui/SettingTab';
 
 export default class TagAliasesPlugin extends Plugin {
     /** Current plugin settings. */
@@ -28,7 +29,9 @@ export default class TagAliasesPlugin extends Plugin {
         await this.loadSettings();
         this.aliasManager.buildIndex(this.settings.aliasGroups);
 
-        // TODO: Register SettingTab (Phase 3)
+        // Register the settings tab
+        this.addSettingTab(new TagAliasesSettingTab(this.app, this));
+
         // TODO: Register EditorSuggest (Phase 4)
         // TODO: Register auto-replace event listener (Phase 5)
         // TODO: Register migration command (Phase 6)

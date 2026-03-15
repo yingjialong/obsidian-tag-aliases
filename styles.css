@@ -1,1 +1,81 @@
 /* Tag Aliases plugin styles */
+
+/* ── AliasGroupModal ── */
+
+.tag-aliases-modal h2 {
+    margin-bottom: 1em;
+}
+
+.tag-aliases-alias-section h3 {
+    margin-bottom: 0.25em;
+}
+
+.tag-aliases-alias-list {
+    margin: 0.5em 0;
+}
+
+.tag-aliases-alias-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.tag-aliases-alias-input {
+    flex: 1;
+    min-width: 120px;
+}
+
+.tag-aliases-alias-delete {
+    flex-shrink: 0;
+    cursor: pointer;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 14px;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+.tag-aliases-alias-delete:hover {
+    color: var(--text-error);
+    background: var(--background-modifier-error);
+}
+
+.tag-aliases-empty-hint {
+    color: var(--text-muted);
+    font-style: italic;
+    font-size: 0.9em;
+}
+
+.tag-aliases-button-row {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 1.5em;
+    padding-top: 1em;
+    border-top: 1px solid var(--background-modifier-border);
+}
+
+/* ── TagAliasSuggest ── */
+
+.tag-aliases-suggest-item {
+    display: flex;
+    flex-direction: column;
+    padding: 4px 0;
+}
+
+.tag-aliases-suggest-primary {
+    font-weight: 500;
+}
+
+.tag-aliases-suggest-alias-hint {
+    font-size: 0.85em;
+    color: var(--text-muted);
+}
+
+.tag-aliases-suggest-count {
+    font-size: 0.8em;
+    color: var(--text-faint);
+    margin-left: auto;
+}

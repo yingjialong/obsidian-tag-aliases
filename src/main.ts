@@ -220,7 +220,7 @@ export default class TagAliasesPlugin extends Plugin {
             async (file: TFile, _data: string, cache: CachedMetadata) => {
                 await this.processAutoReplace(file, cache);
             },
-            300,
+            100,
             true,
         );
 

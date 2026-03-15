@@ -214,12 +214,13 @@ export default class TagAliasesPlugin extends Plugin {
      * pressed space/enter/etc. and moved past it).
      */
     private registerAutoReplace(): void {
-        // Debounced handler: wait 800ms after the last change before processing
+        // Debounced handler: 300ms is enough since isCursorAtTagEnd()
+        // already guards against premature replacement while typing
         const debouncedReplace = debounce(
             async (file: TFile, _data: string, cache: CachedMetadata) => {
                 await this.processAutoReplace(file, cache);
             },
-            800,
+            300,
             true,
         );
 

@@ -22,3 +22,37 @@ npm run version # Version bump (sync manifest.json and versions.json)
 ## Architecture
 
 See `docs/Task-detail/project-plan.md` for the full implementation plan.
+
+### Entry Point & Core Class
+
+`src/main.ts` — `TagAliasesPlugin extends Plugin` is the entry point. Registers commands, event listeners, EditorSuggest, and the settings panel.
+
+### Module Layout
+
+```
+src/
+├── main.ts              # Plugin entry, lifecycle management
+├── types.ts             # Core interfaces (AliasGroup, TagAliasSettings, etc.)
+├── constants.ts         # Default settings, plugin constants
+├── core/
+│   └── AliasManager.ts  # Alias CRUD, index building, tag lookup
+├── suggest/
+│   └── TagAliasSuggest.ts  # EditorSuggest: intercept tag input
+├── migration/
+│   └── BatchMigration.ts   # Scan vault and replace alias tags
+├── ui/
+│   ├── SettingTab.ts       # Plugin settings panel
+│   └── AliasGroupModal.ts  # Modal for editing alias groups
+└── search/                 # [Reserved] Future search expansion
+```
+
+### Data Storage
+
+- Settings stored via `loadData()`/`saveData()` → `data.json`
+- Export/import feature for backup/restore across reinstalls
+
+### Key Dependencies
+
+- `obsidian`: Obsidian API (provided by runtime, external in bundle)
+- `esbuild`: Build tool
+- No runtime dependencies beyond Obsidian API

@@ -21,6 +21,12 @@ export default class TagAliasesPlugin extends Plugin {
     aliasManager: AliasManager = new AliasManager();
     /** Guard flag to prevent recursive auto-replace triggers. */
     private isReplacing = false;
+    /** Reference to our EditorSuggest instance. */
+    private tagAliasSuggest: TagAliasSuggest | null = null;
+    /** Saved built-in tag suggest, restored on unload. */
+    private removedBuiltInSuggest: any = null;
+    /** Index of the removed built-in suggest, for restoring at the same position. */
+    private removedBuiltInSuggestIndex = -1;
 
     /**
      * Plugin lifecycle: called when the plugin is loaded.
@@ -36,8 +42,15 @@ export default class TagAliasesPlugin extends Plugin {
         // Register the settings tab
         this.addSettingTab(new TagAliasesSettingTab(this.app, this));
 
-        // Register alias-aware tag suggestions (overrides built-in tag suggest)
-        this.registerEditorSuggest(new TagAliasSuggest(this.app, this.aliasManager));
+        // Register alias-aware tag suggestions
+        this.tagAliasSuggest = new TagAliasSuggest(this.app, this.aliasManager);
+        this.registerEditorSuggest(this.tagAliasSuggest);
+
+        // Once layout is ready, move our suggest to top priority and
+        // disable the built-in tag suggest to prevent conflicts
+        this.app.workspace.onLayoutReady(() => {
+            this.overrideBuiltInTagSuggest();
+        });
 
         // Register auto-replace: detect alias tags and replace with primary tags
         this.registerAutoReplace();
@@ -57,9 +70,10 @@ export default class TagAliasesPlugin extends Plugin {
 
     /**
      * Plugin lifecycle: called when the plugin is unloaded.
-     * Cleans up resources registered during onload.
+     * Restores the built-in tag suggest if it was removed.
      */
     onunload(): void {
+        this.restoreBuiltInTagSuggest();
         console.log('[TagAliases] Plugin unloaded.');
     }
 
@@ -84,26 +98,133 @@ export default class TagAliasesPlugin extends Plugin {
     }
 
     /**
+     * Override the built-in tag suggest by:
+     * 1. Finding and removing the built-in tag suggest from the internal suggests array
+     * 2. Ensuring our suggest is checked first (moved to front of array)
+     *
+     * This uses Obsidian's internal API (editorSuggest.suggests).
+     * The built-in suggest is restored on plugin unload.
+     */
+    private overrideBuiltInTagSuggest(): void {
+        try {
+            const editorSuggest = (this.app.workspace as any).editorSuggest;
+            if (!editorSuggest?.suggests) {
+                console.warn('[TagAliases] Cannot access editorSuggest.suggests');
+                return;
+            }
+
+            const suggests: any[] = editorSuggest.suggests;
+
+            // Log all suggests for debugging
+            console.log('[TagAliases] Registered suggests:',
+                suggests.map((s: any, i: number) => `[${i}] ${s.constructor?.name}`));
+
+            // Find and remove the built-in tag suggest
+            // Identify it by: not our suggest, and its constructor name hints at tags
+            for (let i = 0; i < suggests.length; i++) {
+                const s = suggests[i];
+                if (s === this.tagAliasSuggest) continue; // skip our own
+
+                const name = s.constructor?.name || '';
+
+                // Check constructor name for tag-related keywords
+                // Obsidian's built-in class names are not minified
+                if (this.looksLikeTagSuggest(s, name)) {
+                    this.removedBuiltInSuggest = suggests.splice(i, 1)[0];
+                    this.removedBuiltInSuggestIndex = i;
+                    console.log('[TagAliases] Removed built-in tag suggest:',
+                        name, 'at index', i);
+                    break;
+                }
+            }
+
+            // Move our suggest to the front of the array for priority
+            const ourIndex = suggests.findIndex((s: any) => s === this.tagAliasSuggest);
+            if (ourIndex > 0) {
+                const [ours] = suggests.splice(ourIndex, 1);
+                suggests.unshift(ours);
+                console.log('[TagAliases] Moved our suggest to front, index 0');
+            }
+
+            console.log('[TagAliases] Final suggests order:',
+                suggests.map((s: any, i: number) => `[${i}] ${s.constructor?.name}`));
+        } catch (err) {
+            console.error('[TagAliases] Failed to override built-in tag suggest:', err);
+        }
+    }
+
+    /**
+     * Heuristic to identify the built-in tag suggest.
+     * Checks constructor name and internal properties.
+     */
+    private looksLikeTagSuggest(suggest: any, constructorName: string): boolean {
+        // Check by constructor name (Obsidian doesn't minify class names)
+        const nameLower = constructorName.toLowerCase();
+        if (nameLower.includes('tag') && !nameLower.includes('tagalias')) {
+            return true;
+        }
+
+        // Fallback: check if it has tag-specific internal behavior
+        // by looking for properties that indicate tag completion
+        try {
+            if (suggest.onTrigger && suggest.getSuggestions) {
+                // Try to see if this suggest handles '#' triggers by inspecting source
+                const triggerStr = suggest.onTrigger.toString();
+                if (triggerStr.includes('#') || triggerStr.includes('tag')) {
+                    return true;
+                }
+            }
+        } catch {
+            // Ignore errors from toString() inspection
+        }
+
+        return false;
+    }
+
+    /**
+     * Restore the built-in tag suggest on plugin unload.
+     */
+    private restoreBuiltInTagSuggest(): void {
+        if (!this.removedBuiltInSuggest) return;
+
+        try {
+            const editorSuggest = (this.app.workspace as any).editorSuggest;
+            if (!editorSuggest?.suggests) return;
+
+            const suggests: any[] = editorSuggest.suggests;
+            // Insert back at original position (or end if index is invalid)
+            const insertAt = Math.min(this.removedBuiltInSuggestIndex, suggests.length);
+            suggests.splice(insertAt, 0, this.removedBuiltInSuggest);
+            console.log('[TagAliases] Restored built-in tag suggest at index', insertAt);
+
+            this.removedBuiltInSuggest = null;
+            this.removedBuiltInSuggestIndex = -1;
+        } catch (err) {
+            console.error('[TagAliases] Failed to restore built-in tag suggest:', err);
+        }
+    }
+
+    /**
      * Register the auto-replace mechanism.
      * Listens to MetadataCache 'changed' events and replaces alias tags
      * with their primary tags when the autoReplace setting is enabled.
      *
-     * Uses debounce to batch rapid changes and a guard flag to prevent
-     * infinite replace loops.
+     * Key timing logic: only replaces tags that are "completed" — i.e.,
+     * the cursor is NOT immediately adjacent to the tag (the user has
+     * pressed space/enter/etc. and moved past it).
      */
     private registerAutoReplace(): void {
-        // Debounced handler: wait 500ms after the last change before processing
+        // Debounced handler: wait 800ms after the last change before processing
         const debouncedReplace = debounce(
             async (file: TFile, _data: string, cache: CachedMetadata) => {
                 await this.processAutoReplace(file, cache);
             },
-            500,
-            true,  // Run on leading edge = false, trailing edge = true
+            800,
+            true,
         );
 
         this.registerEvent(
             this.app.metadataCache.on('changed', (file, data, cache) => {
-                // Skip if auto-replace is disabled or currently replacing
                 if (!this.settings.autoReplace || this.isReplacing) {
                     return;
                 }
@@ -114,11 +235,18 @@ export default class TagAliasesPlugin extends Plugin {
 
     /**
      * Process auto-replace for a single file.
-     * Scans tags in the file and replaces any alias tags with primary tags.
+     * Only replaces alias tags that are "completed" — the cursor is not
+     * still at the end of the tag (user is done typing).
      */
     private async processAutoReplace(file: TFile, cache: CachedMetadata): Promise<void> {
         const fileTags = getAllTags(cache);
         if (!fileTags || fileTags.length === 0) return;
+
+        // Check if the user is actively editing right at the end of a tag
+        if (this.isCursorAtTagEnd()) {
+            console.log('[TagAliases] Skipping auto-replace: cursor still at tag end');
+            return;
+        }
 
         // Find alias tags that need replacement
         const replacements: Array<{ from: string; to: string }> = [];
@@ -133,7 +261,6 @@ export default class TagAliasesPlugin extends Plugin {
 
         console.log('[TagAliases] Auto-replacing in file:', file.path, replacements);
 
-        // Set guard flag to prevent recursive triggers
         this.isReplacing = true;
 
         try {
@@ -141,25 +268,26 @@ export default class TagAliasesPlugin extends Plugin {
 
             // Replace inline tags in content body
             for (const { from, to } of replacements) {
-                // Escape special regex characters in tag name
                 const escapedFrom = from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                // Match the exact tag: preceded by start/whitespace, not followed by word chars
-                const regex = new RegExp(`(^|[\\s])${escapedFrom}(?=[\\s,;.!?\\)\\]\\}]|$)`, 'gm');
+                // Match the exact tag: preceded by start/whitespace,
+                // followed by whitespace/punctuation/end (tag must be "completed")
+                const regex = new RegExp(
+                    `(^|[\\s])${escapedFrom}(?=[\\s,;.!?\\)\\]\\}]|$)`,
+                    'gm',
+                );
                 content = content.replace(regex, `$1${to}`);
             }
 
             await this.app.vault.modify(file, content);
 
-            // Handle frontmatter tags separately via the official API
+            // Handle frontmatter tags
             await this.replaceFrontmatterTags(file, replacements);
 
-            // Notify user about the replacement
-            const summary = replacements.map(r => `${r.from} -> ${r.to}`).join(', ');
-            new Notice(`Tag Aliases: auto-replaced ${summary}`);
+            const summary = replacements.map(r => `${r.from} \u2192 ${r.to}`).join(', ');
+            new Notice(`Tag Aliases: ${summary}`);
         } catch (err) {
             console.error('[TagAliases] Auto-replace failed:', err);
         } finally {
-            // Release guard flag after a delay to let MetadataCache settle
             setTimeout(() => {
                 this.isReplacing = false;
             }, 1000);
@@ -167,8 +295,29 @@ export default class TagAliasesPlugin extends Plugin {
     }
 
     /**
+     * Check if the user's cursor is currently at the end of a tag
+     * (i.e., they might still be typing). Returns true if the text
+     * immediately before the cursor looks like an unfinished tag.
+     */
+    private isCursorAtTagEnd(): boolean {
+        try {
+            const activeEditor = (this.app.workspace as any).activeEditor;
+            const editor = activeEditor?.editor;
+            if (!editor) return false;
+
+            const cursor = editor.getCursor();
+            const line = editor.getLine(cursor.line);
+            const textBeforeCursor = line.substring(0, cursor.ch);
+
+            // If text before cursor ends with #tag-characters, user is still typing a tag
+            return /\#[\p{L}\p{N}_\-/]+$/u.test(textBeforeCursor);
+        } catch {
+            return false;
+        }
+    }
+
+    /**
      * Replace alias tags in a file's YAML frontmatter.
-     * Uses the official processFrontMatter API.
      */
     private async replaceFrontmatterTags(
         file: TFile,
@@ -183,13 +332,11 @@ export default class TagAliasesPlugin extends Plugin {
 
             let changed = false;
             for (let i = 0; i < tags.length; i++) {
-                // Frontmatter tags may or may not have '#' prefix
                 const tagWithHash = tags[i].startsWith('#') ? tags[i] : `#${tags[i]}`;
                 const replacement = replacements.find(r =>
                     r.from.toLowerCase() === tagWithHash.toLowerCase()
                 );
                 if (replacement) {
-                    // Strip '#' for frontmatter format
                     tags[i] = replacement.to.replace(/^#/, '');
                     changed = true;
                 }

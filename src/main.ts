@@ -9,10 +9,13 @@
 import { Plugin } from 'obsidian';
 import { TagAliasSettings } from './types';
 import { DEFAULT_SETTINGS } from './constants';
+import { AliasManager } from './core/AliasManager';
 
 export default class TagAliasesPlugin extends Plugin {
     /** Current plugin settings. */
     settings: TagAliasSettings = DEFAULT_SETTINGS;
+    /** Core alias management: indexing, lookup, CRUD. */
+    aliasManager: AliasManager = new AliasManager();
 
     /**
      * Plugin lifecycle: called when the plugin is loaded.
@@ -21,10 +24,10 @@ export default class TagAliasesPlugin extends Plugin {
     async onload(): Promise<void> {
         console.log('[TagAliases] Loading plugin...');
 
-        // Load persisted settings
+        // Load persisted settings and build alias index
         await this.loadSettings();
+        this.aliasManager.buildIndex(this.settings.aliasGroups);
 
-        // TODO: Initialize AliasManager (Phase 2)
         // TODO: Register SettingTab (Phase 3)
         // TODO: Register EditorSuggest (Phase 4)
         // TODO: Register auto-replace event listener (Phase 5)

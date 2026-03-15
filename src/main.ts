@@ -6,7 +6,7 @@
  * the canonical primary tag, keeping vault tags clean and consistent.
  */
 
-import { Plugin, TFile, CachedMetadata, getAllTags, Notice, debounce } from 'obsidian';
+import { Plugin, Notice, debounce } from 'obsidian';
 import { TagAliasSettings } from './types';
 import { DEFAULT_SETTINGS } from './constants';
 import { AliasManager } from './core/AliasManager';
@@ -206,150 +206,94 @@ export default class TagAliasesPlugin extends Plugin {
 
     /**
      * Register the auto-replace mechanism.
-     * Listens to MetadataCache 'changed' events and replaces alias tags
-     * with their primary tags when the autoReplace setting is enabled.
      *
-     * Key timing logic: only replaces tags that are "completed" — i.e.,
-     * the cursor is NOT immediately adjacent to the tag (the user has
-     * pressed space/enter/etc. and moved past it).
+     * Only replaces the tag the user JUST finished typing (near the cursor),
+     * not all alias tags in the file. Old alias tags elsewhere in the file
+     * are left untouched — use batch migration for those.
+     *
+     * Uses the Editor API for replacement, which supports Ctrl+Z undo.
      */
     private registerAutoReplace(): void {
-        // Debounced handler: 300ms is enough since isCursorAtTagEnd()
-        // already guards against premature replacement while typing
         const debouncedReplace = debounce(
-            async (file: TFile, _data: string, cache: CachedMetadata) => {
-                await this.processAutoReplace(file, cache);
+            () => {
+                this.processAutoReplace();
             },
             100,
             true,
         );
 
         this.registerEvent(
-            this.app.metadataCache.on('changed', (file, data, cache) => {
+            this.app.metadataCache.on('changed', () => {
                 if (!this.settings.autoReplace || this.isReplacing) {
                     return;
                 }
-                debouncedReplace(file, data, cache);
+                debouncedReplace();
             }),
         );
     }
 
     /**
-     * Process auto-replace for a single file.
-     * Only replaces alias tags that are "completed" — the cursor is not
-     * still at the end of the tag (user is done typing).
+     * Check the tag the user just finished typing (near cursor).
+     * If it's an alias, replace it with the primary tag via Editor API.
+     *
+     * A tag is considered "just finished" when the text before the cursor
+     * matches: #tagname + whitespace (space, tab, newline equivalent).
      */
-    private async processAutoReplace(file: TFile, cache: CachedMetadata): Promise<void> {
-        const fileTags = getAllTags(cache);
-        if (!fileTags || fileTags.length === 0) return;
-
-        // Check if the user is actively editing right at the end of a tag
-        if (this.isCursorAtTagEnd()) {
-            return;
-        }
-
-        // Find alias tags that need replacement
-        const replacements: Array<{ from: string; to: string }> = [];
-        for (const tag of fileTags) {
-            if (this.aliasManager.isAlias(tag)) {
-                const primaryTag = this.aliasManager.getPrimaryTag(tag);
-                replacements.push({ from: tag, to: primaryTag });
-            }
-        }
-
-        if (replacements.length === 0) return;
-
-        console.log('[TagAliases] Auto-replacing in file:', file.path, replacements);
-
-        this.isReplacing = true;
-
-        try {
-            let content = await this.app.vault.read(file);
-
-            // Replace inline tags in content body
-            // Uses 'u' flag for correct Unicode character handling
-            for (const { from, to } of replacements) {
-                const escapedFrom = from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                // Match the exact tag: preceded by start/whitespace,
-                // followed by whitespace/punctuation/end (tag must be "completed")
-                const regex = new RegExp(
-                    `(^|[\\s])${escapedFrom}(?=[\\s,;.!?\\)\\]\\}]|$)`,
-                    'gmu',
-                );
-                const newContent = content.replace(regex, `$1${to}`);
-                if (newContent !== content) {
-                    console.log('[TagAliases] Replaced inline:', from, '->', to);
-                }
-                content = newContent;
-            }
-
-            await this.app.vault.modify(file, content);
-
-            // Handle frontmatter tags
-            await this.replaceFrontmatterTags(file, replacements);
-
-            const summary = replacements.map(r => `${r.from} \u2192 ${r.to}`).join(', ');
-            new Notice(`Tag Aliases: ${summary}`);
-        } catch (err) {
-            console.error('[TagAliases] Auto-replace failed:', err);
-        } finally {
-            setTimeout(() => {
-                this.isReplacing = false;
-            }, 1000);
-        }
-    }
-
-    /**
-     * Check if the user's cursor is currently at the end of a tag
-     * (i.e., they might still be typing). Returns true if the text
-     * immediately before the cursor looks like an unfinished tag.
-     */
-    private isCursorAtTagEnd(): boolean {
+    private processAutoReplace(): void {
         try {
             const activeEditor = (this.app.workspace as any).activeEditor;
             const editor = activeEditor?.editor;
-            if (!editor) return false;
+            if (!editor) return;
 
             const cursor = editor.getCursor();
             const line = editor.getLine(cursor.line);
             const textBeforeCursor = line.substring(0, cursor.ch);
 
-            // If text before cursor ends with #tag-characters, user is still typing a tag
-            return /#[\p{L}\p{N}_\-/]+$/u.test(textBeforeCursor);
-        } catch {
-            return false;
+            // Match a completed tag: #tagname followed by whitespace at cursor position
+            // The '#' must be at the start of line or preceded by whitespace
+            const match = textBeforeCursor.match(
+                /(?:^|\s)(#[\p{L}\p{N}_\-/]+)\s+$/u
+            );
+            if (!match || match.index === undefined) return;
+
+            const tag = match[1];
+
+            // Check if this tag is an alias
+            if (!this.aliasManager.isAlias(tag)) return;
+
+            const primaryTag = this.aliasManager.getPrimaryTag(tag);
+
+            // Calculate the exact position of the tag in the line
+            // match[0] includes optional leading whitespace + tag + trailing whitespace
+            // match[1] is just the tag (#tagname)
+            const fullMatchStart = match.index;
+            const leadingLen = match[0].length - match[1].length
+                - (match[0].length - match[0].trimStart().length > 0
+                    ? 0 : 0);
+
+            // Find exact tag start by searching for '#' in the match
+            const tagStartInMatch = match[0].indexOf('#');
+            const tagStartCh = fullMatchStart + tagStartInMatch;
+            const tagEndCh = tagStartCh + tag.length;
+
+            // Replace via Editor API (supports undo)
+            this.isReplacing = true;
+
+            editor.replaceRange(
+                primaryTag,
+                { line: cursor.line, ch: tagStartCh },
+                { line: cursor.line, ch: tagEndCh },
+            );
+
+            new Notice(`Tag Aliases: ${tag} \u2192 ${primaryTag}`);
+            console.log('[TagAliases] Auto-replaced:', tag, '\u2192', primaryTag);
+
+            setTimeout(() => {
+                this.isReplacing = false;
+            }, 500);
+        } catch (err) {
+            console.error('[TagAliases] Auto-replace error:', err);
+            this.isReplacing = false;
         }
-    }
-
-    /**
-     * Replace alias tags in a file's YAML frontmatter.
-     */
-    private async replaceFrontmatterTags(
-        file: TFile,
-        replacements: Array<{ from: string; to: string }>,
-    ): Promise<void> {
-        await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
-            if (!frontmatter.tags) return;
-
-            const tags: string[] = Array.isArray(frontmatter.tags)
-                ? frontmatter.tags
-                : [frontmatter.tags];
-
-            let changed = false;
-            for (let i = 0; i < tags.length; i++) {
-                const tagWithHash = tags[i].startsWith('#') ? tags[i] : `#${tags[i]}`;
-                const replacement = replacements.find(r =>
-                    r.from.toLowerCase() === tagWithHash.toLowerCase()
-                );
-                if (replacement) {
-                    tags[i] = replacement.to.replace(/^#/, '');
-                    changed = true;
-                }
-            }
-
-            if (changed) {
-                frontmatter.tags = tags;
-            }
-        });
     }
 }

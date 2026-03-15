@@ -11,6 +11,7 @@ import { TagAliasSettings } from './types';
 import { DEFAULT_SETTINGS } from './constants';
 import { AliasManager } from './core/AliasManager';
 import { TagAliasesSettingTab } from './ui/SettingTab';
+import { TagAliasSuggest } from './suggest/TagAliasSuggest';
 
 export default class TagAliasesPlugin extends Plugin {
     /** Current plugin settings. */
@@ -32,7 +33,9 @@ export default class TagAliasesPlugin extends Plugin {
         // Register the settings tab
         this.addSettingTab(new TagAliasesSettingTab(this.app, this));
 
-        // TODO: Register EditorSuggest (Phase 4)
+        // Register alias-aware tag suggestions (overrides built-in tag suggest)
+        this.registerEditorSuggest(new TagAliasSuggest(this.app, this.aliasManager));
+
         // TODO: Register auto-replace event listener (Phase 5)
         // TODO: Register migration command (Phase 6)
 

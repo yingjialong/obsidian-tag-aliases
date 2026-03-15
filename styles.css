@@ -65,6 +65,12 @@
     padding: 4px 0;
 }
 
+.tag-aliases-suggest-top-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
 .tag-aliases-suggest-primary {
     font-weight: 500;
 }

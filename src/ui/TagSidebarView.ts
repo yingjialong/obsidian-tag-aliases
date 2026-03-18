@@ -146,7 +146,10 @@ export class TagSidebarView extends ItemView {
 
     /**
      * Render or clear the conflict warning banner.
-     * Shows a warning header and list of conflict descriptions when conflicts exist.
+     *
+     * Separates conflicts into two categories:
+     * - Unmigrated aliases: fixable via batch migration (shows a "Run Migration" button)
+     * - Structural conflicts: require manual editing (duplicate alias, primary-as-alias, etc.)
      */
     private renderConflictBanner(conflicts: Conflict[]): void {
         if (!this.bannerContainer) return;
@@ -154,12 +157,47 @@ export class TagSidebarView extends ItemView {
 
         if (conflicts.length === 0) return;
 
-        const banner = this.bannerContainer.createDiv('tag-aliases-conflict-banner');
-        banner.createEl('strong', { text: '\u26A0 Conflicts detected' });
+        const unmigrated = conflicts.filter(c => c.type === 'unmigrated-alias');
+        const structural = conflicts.filter(c => c.type !== 'unmigrated-alias');
 
-        const list = banner.createEl('ul');
-        for (const c of conflicts) {
-            list.createEl('li', { text: c.description });
+        // Structural conflicts: user must manually edit groups to resolve
+        if (structural.length > 0) {
+            const banner = this.bannerContainer.createDiv('tag-aliases-conflict-banner');
+            banner.createEl('strong', { text: '\u26A0 Group conflicts' });
+            banner.createEl('p', {
+                text: 'Edit the highlighted groups below to resolve:',
+                cls: 'tag-aliases-conflict-hint',
+            });
+            const list = banner.createEl('ul');
+            for (const c of structural) {
+                list.createEl('li', { text: c.description });
+            }
+        }
+
+        // Unmigrated aliases: fixable by running batch migration
+        if (unmigrated.length > 0) {
+            const banner = this.bannerContainer.createDiv('tag-aliases-conflict-banner');
+            banner.createEl('strong', { text: `\u26A0 ${unmigrated.length} unmigrated alias(es)` });
+            const list = banner.createEl('ul');
+            for (const c of unmigrated) {
+                // Shorter description: just show the alias → primary mapping
+                const alias = c.tag.replace(/^#/, '');
+                const primary = c.groupIds[0]
+                    ? this.plugin.aliasManager.getPrimaryTag(c.tag).replace(/^#/, '')
+                    : '?';
+                list.createEl('li', { text: `${alias} \u2192 ${primary}` });
+            }
+            // "Run Migration" button
+            const migrateBtn = banner.createEl('button', {
+                cls: 'tag-aliases-conflict-migrate-btn',
+                text: 'Run Migration',
+            });
+            migrateBtn.addEventListener('click', async () => {
+                const { BatchMigration } = await import('../migration/BatchMigration');
+                const migration = new BatchMigration(this.app, this.plugin.aliasManager);
+                await migration.run();
+                this.refresh();
+            });
         }
     }
 

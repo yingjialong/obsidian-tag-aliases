@@ -165,6 +165,31 @@
     color: var(--text-normal);
 }
 
+.tag-aliases-conflict-hint {
+    margin: 2px 0 4px;
+    color: var(--text-muted);
+    font-size: 0.95em;
+}
+
+/* "Run Migration" button inside conflict banner */
+.tag-aliases-conflict-migrate-btn {
+    display: block;
+    width: 100%;
+    margin-top: 6px;
+    padding: 4px 8px;
+    font-size: 0.85em;
+    cursor: pointer;
+    border: 1px solid var(--interactive-accent);
+    border-radius: 4px;
+    background: var(--interactive-accent);
+    color: var(--text-on-accent);
+    text-align: center;
+}
+
+.tag-aliases-conflict-migrate-btn:hover {
+    opacity: 0.9;
+}
+
 /* Scrollable tag list container */
 .tag-aliases-sidebar-list {
     flex: 1;

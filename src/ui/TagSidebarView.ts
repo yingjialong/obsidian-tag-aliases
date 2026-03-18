@@ -1,16 +1,45 @@
 /**
  * TagSidebarView — Right-sidebar panel for managing tag aliases.
  *
- * Displays all vault tags, supports inline alias editing,
- * conflict detection, search, and sort.
+ * Displays all vault tags merged with alias group data.
+ * Supports inline alias editing, conflict detection, search, and sort.
  */
 
-import { ItemView, WorkspaceLeaf } from 'obsidian';
+import { ItemView, WorkspaceLeaf, debounce } from 'obsidian';
 import type TagAliasesPlugin from '../main';
 import { VIEW_TYPE_TAG_ALIASES } from '../constants';
+import { AliasGroup } from '../types';
+import { checkConflicts, Conflict } from '../core/ConflictChecker';
+
+/**
+ * Internal display model for a single tag row in the sidebar.
+ * Merges vault tag counts with alias group metadata.
+ */
+interface DisplayTag {
+    /** The tag string, always with '#' prefix, e.g. "#javascript". */
+    tag: string;
+    /** Vault usage count from MetadataCache. */
+    count: number;
+    /** Non-null if this tag has an alias group configured. */
+    group: AliasGroup | null;
+    /** True if involved in a detected cross-group conflict. */
+    hasConflict: boolean;
+}
 
 export class TagSidebarView extends ItemView {
     private plugin: TagAliasesPlugin;
+
+    /** Current search filter text. */
+    private searchQuery = '';
+    /** Current sort mode key. */
+    private sortMode = 'name-asc';
+    /** Tag string of the currently expanded item (null = all collapsed). */
+    private expandedTag: string | null = null;
+
+    /** DOM reference to the scrollable tag list container. */
+    private listContainer: HTMLElement | null = null;
+    /** DOM reference to the conflict banner area. */
+    private bannerContainer: HTMLElement | null = null;
 
     constructor(leaf: WorkspaceLeaf, plugin: TagAliasesPlugin) {
         super(leaf);
@@ -21,15 +50,631 @@ export class TagSidebarView extends ItemView {
     getDisplayText(): string { return 'Tag Aliases'; }
     getIcon(): string { return 'tags'; }
 
+    /**
+     * Called when the sidebar view is opened.
+     * Builds the full sidebar UI: toolbar, conflict banner, and tag list.
+     */
     async onOpen(): Promise<void> {
         const container = this.containerEl.children[1] as HTMLElement;
         container.empty();
         container.addClass('tag-aliases-sidebar');
-        // Placeholder header — will be replaced with full UI in later tasks
-        container.createEl('div', { cls: 'tag-aliases-sidebar-header', text: 'Tag Aliases' });
+
+        // Build the toolbar (search input + sort dropdown)
+        this.renderToolbar(container);
+
+        // Conflict banner area (populated by renderConflictBanner)
+        this.bannerContainer = container.createDiv('tag-aliases-conflict-banner-wrapper');
+
+        // Scrollable tag list container
+        this.listContainer = container.createDiv('tag-aliases-sidebar-list');
+
+        // Initial render
+        this.refresh();
     }
 
     async onClose(): Promise<void> {
         this.containerEl.empty();
+    }
+
+    /**
+     * Full re-render: rebuild display list, update conflict banner, re-render tag list.
+     * Called after any data mutation (add/remove alias, delete group, etc.).
+     */
+    public refresh(): void {
+        const displayList = this.buildDisplayList();
+        const conflicts = checkConflicts(this.plugin.aliasManager.getGroups());
+
+        this.renderConflictBanner(conflicts);
+        this.renderTagList(displayList);
+    }
+
+    // ──────────────────────────────────────────────
+    //  Toolbar: Search & Sort
+    // ──────────────────────────────────────────────
+
+    /**
+     * Render the search input and sort dropdown into the toolbar area.
+     */
+    private renderToolbar(parent: HTMLElement): void {
+        const toolbar = parent.createDiv('tag-aliases-sidebar-toolbar');
+
+        // Search input with debounced filtering
+        const searchInput = toolbar.createEl('input', {
+            cls: 'tag-aliases-sidebar-search',
+            attr: { type: 'text', placeholder: 'Search tags...' },
+        });
+
+        const debouncedSearch = debounce((value: string) => {
+            this.searchQuery = value;
+            this.refresh();
+        }, 150, true);
+
+        searchInput.addEventListener('input', () => {
+            debouncedSearch(searchInput.value);
+        });
+
+        // Sort mode dropdown
+        const sortSelect = toolbar.createEl('select', {
+            cls: 'tag-aliases-sidebar-sort',
+        });
+
+        const sortOptions: { value: string; label: string }[] = [
+            { value: 'name-asc', label: 'Name A \u2192 Z' },
+            { value: 'name-desc', label: 'Name Z \u2192 A' },
+            { value: 'count-desc', label: 'Most used' },
+            { value: 'alias-desc', label: 'Most aliases' },
+        ];
+
+        for (const opt of sortOptions) {
+            const optEl = sortSelect.createEl('option', { text: opt.label, attr: { value: opt.value } });
+            if (opt.value === this.sortMode) {
+                optEl.selected = true;
+            }
+        }
+
+        sortSelect.addEventListener('change', () => {
+            this.sortMode = sortSelect.value;
+            this.refresh();
+        });
+    }
+
+    // ──────────────────────────────────────────────
+    //  Conflict Banner
+    // ──────────────────────────────────────────────
+
+    /**
+     * Render or clear the conflict warning banner.
+     * Shows a warning header and list of conflict descriptions when conflicts exist.
+     */
+    private renderConflictBanner(conflicts: Conflict[]): void {
+        if (!this.bannerContainer) return;
+        this.bannerContainer.empty();
+
+        if (conflicts.length === 0) return;
+
+        const banner = this.bannerContainer.createDiv('tag-aliases-conflict-banner');
+        banner.createEl('strong', { text: '\u26A0 Conflicts detected' });
+
+        const list = banner.createEl('ul');
+        for (const c of conflicts) {
+            list.createEl('li', { text: c.description });
+        }
+    }
+
+    // ──────────────────────────────────────────────
+    //  Display List Construction
+    // ──────────────────────────────────────────────
+
+    /**
+     * Build the merged display list from vault tags and alias groups.
+     *
+     * Steps:
+     * 1. Get vault tags (tag -> count) from MetadataCache
+     * 2. Get alias groups from AliasManager
+     * 3. Build a set of all known aliases (to exclude from top-level)
+     * 4. Run conflict detection to mark conflicting groups
+     * 5. For each vault tag: skip aliases, attach group if primary
+     * 6. Add alias groups whose primaryTag has no vault usage (count=0)
+     * 7. Apply search filter and sort
+     */
+    private buildDisplayList(): DisplayTag[] {
+        // Step 1: Get vault tags
+        const metadataCache = this.app.metadataCache as any;
+        const vaultTags: Record<string, number> =
+            typeof metadataCache.getTags === 'function'
+                ? metadataCache.getTags()
+                : {};
+
+        // Step 2: Get alias groups
+        const groups = this.plugin.aliasManager.getGroups();
+
+        // Step 3: Build a set of all normalized aliases for exclusion
+        const aliasSet = new Set<string>();
+        for (const group of groups) {
+            for (const alias of group.aliases) {
+                aliasSet.add(alias.replace(/^#/, '').toLowerCase());
+            }
+        }
+
+        // Step 4: Detect conflicts, build set of conflicting group IDs
+        const conflicts = checkConflicts(groups);
+        const conflictGroupIds = new Set<string>();
+        for (const c of conflicts) {
+            for (const id of c.groupIds) {
+                conflictGroupIds.add(id);
+            }
+        }
+
+        const result: DisplayTag[] = [];
+        // Track which group primaryTags we've already added (by normalized form)
+        const addedPrimaries = new Set<string>();
+
+        // Step 5: Process vault tags
+        for (const [tag, count] of Object.entries(vaultTags)) {
+            const normalized = tag.replace(/^#/, '').toLowerCase();
+
+            // Skip if this tag is a known alias
+            if (aliasSet.has(normalized)) {
+                continue;
+            }
+
+            // Look up group: if this tag is the primary of a group, attach it
+            const group = this.plugin.aliasManager.findGroup(tag);
+            let attachedGroup: AliasGroup | null = null;
+
+            if (group && group.primaryTag.replace(/^#/, '').toLowerCase() === normalized) {
+                attachedGroup = group;
+                addedPrimaries.add(normalized);
+            }
+
+            const hasConflict = attachedGroup
+                ? conflictGroupIds.has(attachedGroup.id)
+                : false;
+
+            result.push({
+                tag,
+                count,
+                group: attachedGroup,
+                hasConflict,
+            });
+        }
+
+        // Step 6: Add alias groups whose primaryTag is not already in the list
+        for (const group of groups) {
+            const normalized = group.primaryTag.replace(/^#/, '').toLowerCase();
+            if (!addedPrimaries.has(normalized)) {
+                result.push({
+                    tag: group.primaryTag,
+                    count: 0,
+                    group,
+                    hasConflict: conflictGroupIds.has(group.id),
+                });
+            }
+        }
+
+        // Step 7: Apply search filter
+        const filtered = this.filterBySearch(result);
+
+        // Step 8: Sort
+        filtered.sort((a, b) => this.compareTags(a, b));
+
+        return filtered;
+    }
+
+    /**
+     * Filter the display list by the current search query.
+     * Matches against tag name (without '#', case-insensitive, substring)
+     * and alias names in the group.
+     */
+    private filterBySearch(list: DisplayTag[]): DisplayTag[] {
+        if (!this.searchQuery.trim()) {
+            return list;
+        }
+
+        const query = this.searchQuery.trim().toLowerCase();
+
+        return list.filter(item => {
+            // Match against the tag name (without '#')
+            const tagName = item.tag.replace(/^#/, '').toLowerCase();
+            if (tagName.includes(query)) {
+                return true;
+            }
+
+            // Match against alias names in the group
+            if (item.group) {
+                for (const alias of item.group.aliases) {
+                    const aliasName = alias.replace(/^#/, '').toLowerCase();
+                    if (aliasName.includes(query)) {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        });
+    }
+
+    /**
+     * Compare two DisplayTag items for sorting based on the current sort mode.
+     */
+    private compareTags(a: DisplayTag, b: DisplayTag): number {
+        switch (this.sortMode) {
+            case 'name-desc':
+                return b.tag.localeCompare(a.tag);
+            case 'count-desc':
+                return b.count - a.count;
+            case 'alias-desc':
+                return (b.group?.aliases.length ?? 0) - (a.group?.aliases.length ?? 0);
+            default: // name-asc
+                return a.tag.localeCompare(b.tag);
+        }
+    }
+
+    // ──────────────────────────────────────────────
+    //  Tag List Rendering
+    // ──────────────────────────────────────────────
+
+    /**
+     * Render the full tag list into the scrollable container.
+     * Each item shows tag name, count badge, alias preview, and expand/collapse.
+     */
+    private renderTagList(displayList: DisplayTag[]): void {
+        if (!this.listContainer) return;
+        this.listContainer.empty();
+
+        if (displayList.length === 0) {
+            this.listContainer.createDiv({
+                cls: 'tag-aliases-sidebar-empty',
+                text: this.searchQuery ? 'No tags match your search.' : 'No tags found in vault.',
+            });
+            return;
+        }
+
+        for (const item of displayList) {
+            this.renderTagItem(item);
+        }
+    }
+
+    /**
+     * Render a single tag item row (collapsed or expanded).
+     */
+    private renderTagItem(item: DisplayTag): void {
+        if (!this.listContainer) return;
+
+        const isExpanded = this.expandedTag === item.tag;
+        const hasGroup = item.group !== null;
+
+        // Main tag row container
+        const itemEl = this.listContainer.createDiv({
+            cls: 'tag-aliases-sidebar-item',
+        });
+
+        // Add modifier classes
+        if (hasGroup) itemEl.addClass('is-group');
+        if (isExpanded) itemEl.addClass('is-expanded');
+        if (item.hasConflict) itemEl.addClass('tag-aliases-sidebar-item-conflict');
+
+        // Click handler: toggle expand/collapse
+        itemEl.addEventListener('click', () => {
+            this.expandedTag = isExpanded ? null : item.tag;
+            this.refresh();
+        });
+
+        // Top row: indicator + tag name + count
+        const topRow = itemEl.createDiv('tag-aliases-sidebar-item-top');
+
+        // Expand/collapse indicator
+        const indicator = hasGroup
+            ? (isExpanded ? '\u25BE' : '\u25B8')  // filled triangle down/right
+            : '\u00B7';  // middle dot for standalone tags
+        topRow.createSpan({ cls: 'tag-aliases-sidebar-indicator', text: indicator });
+
+        // Tag name
+        topRow.createSpan({ cls: 'tag-aliases-sidebar-tag-name', text: item.tag });
+
+        // Count badge (right-aligned)
+        if (item.count > 0) {
+            topRow.createSpan({ cls: 'tag-aliases-sidebar-count', text: `\u00D7${item.count}` });
+        }
+
+        // Aliases preview (below tag name, collapsed only)
+        if (hasGroup && !isExpanded && item.group) {
+            const aliasNames = item.group.aliases.map(a => a.replace(/^#/, ''));
+            if (aliasNames.length > 0) {
+                itemEl.createDiv({
+                    cls: 'tag-aliases-sidebar-aliases-preview',
+                    text: aliasNames.join(', '),
+                });
+            }
+        }
+
+        // Expanded edit panel
+        if (isExpanded) {
+            if (item.group) {
+                this.renderEditPanel(item.group, item.tag);
+            } else {
+                this.renderCreatePanel(item.tag);
+            }
+        }
+    }
+
+    // ──────────────────────────────────────────────
+    //  Expanded: Edit Existing Group
+    // ──────────────────────────────────────────────
+
+    /**
+     * Render the expanded edit panel for an existing alias group.
+     * Shows alias rows with delete buttons, an add-alias input, and a delete group button.
+     */
+    private renderEditPanel(group: AliasGroup, tag: string): void {
+        if (!this.listContainer) return;
+
+        const panel = this.listContainer.createDiv('tag-aliases-sidebar-edit-panel');
+
+        // Render each alias with a delete button
+        for (const alias of group.aliases) {
+            const aliasRow = panel.createDiv('tag-aliases-sidebar-alias-row');
+            aliasRow.createSpan({ text: alias });
+
+            const deleteBtn = aliasRow.createEl('button', {
+                cls: 'tag-aliases-sidebar-alias-delete',
+                text: '\u2715',
+                attr: { 'aria-label': `Remove alias ${alias}` },
+            });
+
+            // Delete alias click handler
+            deleteBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                await this.handleDeleteAlias(group, alias);
+            });
+        }
+
+        // Add alias row: input + add button
+        const addRow = panel.createDiv('tag-aliases-sidebar-add-row');
+        const addInput = addRow.createEl('input', {
+            attr: { type: 'text', placeholder: 'add alias...' },
+        });
+
+        const addBtn = addRow.createEl('button', {
+            text: '\uFF0B',
+            attr: { 'aria-label': 'Add alias' },
+        });
+
+        // Error message area (initially hidden)
+        const errorEl = panel.createDiv('tag-aliases-sidebar-error');
+
+        // Add alias handler
+        const doAdd = async () => {
+            const rawValue = addInput.value.trim();
+            if (!rawValue) return;
+
+            const newAlias = rawValue.startsWith('#') ? rawValue : '#' + rawValue;
+            const error = await this.handleAddAlias(group, newAlias, errorEl);
+            if (!error) {
+                addInput.value = '';
+            }
+        };
+
+        addBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            doAdd();
+        });
+
+        addInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.stopPropagation();
+                doAdd();
+            }
+        });
+
+        // Prevent input clicks from toggling expand/collapse
+        addInput.addEventListener('click', (e) => e.stopPropagation());
+
+        // Delete group button
+        const deleteGroupBtn = panel.createEl('button', {
+            cls: 'tag-aliases-sidebar-delete-group',
+            text: 'Delete Group',
+        });
+
+        deleteGroupBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            await this.handleDeleteGroup(group);
+        });
+    }
+
+    // ──────────────────────────────────────────────
+    //  Expanded: Create New Group
+    // ──────────────────────────────────────────────
+
+    /**
+     * Render the expanded panel for a standalone tag (no group yet).
+     * Allows creating a new alias group by adding the first alias.
+     */
+    private renderCreatePanel(tag: string): void {
+        if (!this.listContainer) return;
+
+        const panel = this.listContainer.createDiv('tag-aliases-sidebar-edit-panel');
+
+        panel.createDiv({
+            cls: 'tag-aliases-sidebar-no-aliases',
+            text: 'No aliases yet',
+        });
+
+        // Add alias row: input + add button
+        const addRow = panel.createDiv('tag-aliases-sidebar-add-row');
+        const addInput = addRow.createEl('input', {
+            attr: { type: 'text', placeholder: 'add alias...' },
+        });
+
+        const addBtn = addRow.createEl('button', {
+            text: '\uFF0B',
+            attr: { 'aria-label': 'Add alias' },
+        });
+
+        // Error message area
+        const errorEl = panel.createDiv('tag-aliases-sidebar-error');
+
+        // Create group handler
+        const doCreate = async () => {
+            const rawValue = addInput.value.trim();
+            if (!rawValue) return;
+
+            const newAlias = rawValue.startsWith('#') ? rawValue : '#' + rawValue;
+            const primaryTag = tag.startsWith('#') ? tag : '#' + tag;
+
+            const error = await this.handleCreateGroup(primaryTag, newAlias, errorEl);
+            if (!error) {
+                addInput.value = '';
+            }
+        };
+
+        addBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            doCreate();
+        });
+
+        addInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.stopPropagation();
+                doCreate();
+            }
+        });
+
+        // Prevent input clicks from toggling expand/collapse
+        addInput.addEventListener('click', (e) => e.stopPropagation());
+
+        // Cancel button to collapse without creating
+        const cancelBtn = panel.createEl('button', {
+            cls: 'tag-aliases-sidebar-cancel',
+            text: 'Cancel',
+        });
+
+        cancelBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.expandedTag = null;
+            this.refresh();
+        });
+    }
+
+    // ──────────────────────────────────────────────
+    //  Data Mutation Handlers
+    // ──────────────────────────────────────────────
+
+    /**
+     * Handle deleting a single alias from a group.
+     * If the alias is the last one, the entire group is removed.
+     */
+    private async handleDeleteAlias(group: AliasGroup, alias: string): Promise<void> {
+        const newAliases = group.aliases.filter(a => a !== alias);
+
+        let updatedGroups: AliasGroup[] | null;
+
+        if (newAliases.length === 0) {
+            // Last alias removed: delete the entire group
+            updatedGroups = this.plugin.aliasManager.removeGroup(group.id);
+            console.log('[TagAliases] Sidebar: removed group (last alias deleted)', group.primaryTag);
+        } else {
+            // Update group with the remaining aliases
+            updatedGroups = this.plugin.aliasManager.updateGroup(group.id, { aliases: newAliases });
+            console.log('[TagAliases] Sidebar: removed alias', alias, 'from', group.primaryTag);
+        }
+
+        if (updatedGroups) {
+            this.plugin.settings.aliasGroups = updatedGroups;
+            await this.plugin.saveSettings();
+        }
+
+        this.refresh();
+    }
+
+    /**
+     * Handle adding a new alias to an existing group.
+     * Validates the alias before adding. Returns true if an error occurred.
+     */
+    private async handleAddAlias(
+        group: AliasGroup,
+        newAlias: string,
+        errorEl: HTMLElement,
+    ): Promise<boolean> {
+        // Clear previous error
+        errorEl.textContent = '';
+
+        // Build a temporary group with the new alias for validation
+        const tempGroup: AliasGroup = {
+            ...group,
+            aliases: [...group.aliases, newAlias],
+        };
+
+        const validationError = this.plugin.aliasManager.validate(tempGroup, group.id);
+        if (validationError) {
+            errorEl.textContent = validationError;
+            console.log('[TagAliases] Sidebar: validation failed for alias', newAlias, '-', validationError);
+            return true;
+        }
+
+        // Valid: update the group
+        const updatedGroups = this.plugin.aliasManager.updateGroup(group.id, {
+            aliases: tempGroup.aliases,
+        });
+
+        if (updatedGroups) {
+            this.plugin.settings.aliasGroups = updatedGroups;
+            await this.plugin.saveSettings();
+            console.log('[TagAliases] Sidebar: added alias', newAlias, 'to', group.primaryTag);
+        }
+
+        this.refresh();
+        return false;
+    }
+
+    /**
+     * Handle creating a new alias group for a standalone tag.
+     * Validates the group before creating. Returns true if an error occurred.
+     */
+    private async handleCreateGroup(
+        primaryTag: string,
+        firstAlias: string,
+        errorEl: HTMLElement,
+    ): Promise<boolean> {
+        // Clear previous error
+        errorEl.textContent = '';
+
+        const newGroup: AliasGroup = {
+            id: this.plugin.aliasManager.generateId(),
+            primaryTag,
+            aliases: [firstAlias],
+        };
+
+        const validationError = this.plugin.aliasManager.validate(newGroup);
+        if (validationError) {
+            errorEl.textContent = validationError;
+            console.log('[TagAliases] Sidebar: validation failed for new group', primaryTag, '-', validationError);
+            return true;
+        }
+
+        // Valid: add the group
+        const updatedGroups = this.plugin.aliasManager.addGroup(newGroup);
+        this.plugin.settings.aliasGroups = updatedGroups;
+        await this.plugin.saveSettings();
+        console.log('[TagAliases] Sidebar: created new group', primaryTag, 'with alias', firstAlias);
+
+        this.refresh();
+        return false;
+    }
+
+    /**
+     * Handle deleting an entire alias group.
+     */
+    private async handleDeleteGroup(group: AliasGroup): Promise<void> {
+        const updatedGroups = this.plugin.aliasManager.removeGroup(group.id);
+
+        if (updatedGroups) {
+            this.plugin.settings.aliasGroups = updatedGroups;
+            await this.plugin.saveSettings();
+            console.log('[TagAliases] Sidebar: deleted group', group.primaryTag);
+        }
+
+        this.expandedTag = null;
+        this.refresh();
     }
 }

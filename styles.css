@@ -85,3 +85,303 @@
     color: var(--text-faint);
     margin-left: auto;
 }
+
+/* ── TagSidebarView ── */
+
+/* Main sidebar container: flex column, fill available height */
+.tag-aliases-sidebar {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+
+/* Toolbar: search + sort row */
+.tag-aliases-sidebar-toolbar {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px;
+    border-bottom: 1px solid var(--background-modifier-border);
+    flex-shrink: 0;
+}
+
+/* Search input: full width */
+.tag-aliases-sidebar-search {
+    width: 100%;
+    padding: 4px 8px;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    background: var(--background-primary);
+    color: var(--text-normal);
+    font-size: 0.9em;
+    box-sizing: border-box;
+}
+
+.tag-aliases-sidebar-search:focus {
+    border-color: var(--interactive-accent);
+    outline: none;
+}
+
+/* Sort dropdown */
+.tag-aliases-sidebar-sort {
+    width: 100%;
+    padding: 4px 8px;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    background: var(--background-primary);
+    color: var(--text-normal);
+    font-size: 0.85em;
+    box-sizing: border-box;
+}
+
+/* Conflict banner wrapper (no padding when empty) */
+.tag-aliases-conflict-banner-wrapper {
+    flex-shrink: 0;
+}
+
+/* Conflict banner: warning background */
+.tag-aliases-conflict-banner {
+    padding: 8px 10px;
+    background: var(--background-modifier-error);
+    border-bottom: 1px solid var(--background-modifier-border);
+    font-size: 0.85em;
+}
+
+.tag-aliases-conflict-banner strong {
+    display: block;
+    margin-bottom: 4px;
+    color: var(--text-error);
+}
+
+.tag-aliases-conflict-banner ul {
+    margin: 0;
+    padding-left: 16px;
+}
+
+.tag-aliases-conflict-banner li {
+    margin-bottom: 2px;
+    color: var(--text-error);
+}
+
+/* Scrollable tag list container */
+.tag-aliases-sidebar-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px 0;
+}
+
+/* Empty state message */
+.tag-aliases-sidebar-empty {
+    padding: 16px 12px;
+    color: var(--text-muted);
+    font-style: italic;
+    font-size: 0.9em;
+    text-align: center;
+}
+
+/* Individual tag row */
+.tag-aliases-sidebar-item {
+    padding: 6px 10px;
+    cursor: pointer;
+    border-left: 3px solid transparent;
+    transition: background-color 0.1s ease;
+}
+
+.tag-aliases-sidebar-item:hover {
+    background: var(--interactive-hover);
+}
+
+/* Group indicator: show triangles */
+.tag-aliases-sidebar-item.is-expanded {
+    background: var(--background-secondary);
+}
+
+/* Conflict indicator: red left border */
+.tag-aliases-sidebar-item.tag-aliases-sidebar-item-conflict {
+    border-left-color: var(--text-error);
+}
+
+/* Top row within a tag item: indicator + name + count */
+.tag-aliases-sidebar-item-top {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 20px;
+}
+
+/* Expand/collapse indicator character */
+.tag-aliases-sidebar-indicator {
+    width: 12px;
+    text-align: center;
+    font-size: 0.85em;
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+/* Tag name text */
+.tag-aliases-sidebar-tag-name {
+    flex: 1;
+    font-size: 0.9em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Usage count badge (right-aligned, muted) */
+.tag-aliases-sidebar-count {
+    font-size: 0.8em;
+    color: var(--text-faint);
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
+/* Aliases preview (collapsed state) */
+.tag-aliases-sidebar-aliases-preview {
+    font-size: 0.8em;
+    color: var(--text-muted);
+    padding-left: 18px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-top: 1px;
+}
+
+/* Expanded edit panel */
+.tag-aliases-sidebar-edit-panel {
+    padding: 6px 4px 6px 18px;
+    border-top: 1px solid var(--background-modifier-border);
+    margin-top: 4px;
+}
+
+/* Alias row within edit panel */
+.tag-aliases-sidebar-alias-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 3px 0;
+    font-size: 0.85em;
+}
+
+.tag-aliases-sidebar-alias-row span {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Alias delete button */
+.tag-aliases-sidebar-alias-delete {
+    flex-shrink: 0;
+    cursor: pointer;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 12px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    line-height: 1;
+}
+
+.tag-aliases-sidebar-alias-delete:hover {
+    color: var(--text-error);
+    background: var(--background-modifier-error);
+}
+
+/* Add alias row: input + button */
+.tag-aliases-sidebar-add-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 6px;
+}
+
+.tag-aliases-sidebar-add-row input {
+    flex: 1;
+    padding: 3px 6px;
+    font-size: 0.85em;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 3px;
+    background: var(--background-primary);
+    color: var(--text-normal);
+    min-width: 0;
+}
+
+.tag-aliases-sidebar-add-row input:focus {
+    border-color: var(--interactive-accent);
+    outline: none;
+}
+
+.tag-aliases-sidebar-add-row button {
+    flex-shrink: 0;
+    padding: 3px 8px;
+    font-size: 0.85em;
+    cursor: pointer;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 3px;
+    background: var(--background-secondary);
+    color: var(--text-normal);
+}
+
+.tag-aliases-sidebar-add-row button:hover {
+    background: var(--interactive-hover);
+}
+
+/* Validation error message */
+.tag-aliases-sidebar-error {
+    font-size: 0.8em;
+    color: var(--text-error);
+    margin-top: 4px;
+    min-height: 0;
+}
+
+.tag-aliases-sidebar-error:empty {
+    display: none;
+}
+
+/* "No aliases yet" text for standalone tags */
+.tag-aliases-sidebar-no-aliases {
+    font-size: 0.85em;
+    color: var(--text-muted);
+    font-style: italic;
+    margin-bottom: 4px;
+}
+
+/* Delete group button: danger styling */
+.tag-aliases-sidebar-delete-group {
+    display: block;
+    width: 100%;
+    margin-top: 8px;
+    padding: 4px 8px;
+    font-size: 0.85em;
+    cursor: pointer;
+    border: 1px solid var(--text-error);
+    border-radius: 4px;
+    background: none;
+    color: var(--text-error);
+    text-align: center;
+}
+
+.tag-aliases-sidebar-delete-group:hover {
+    background: var(--background-modifier-error);
+}
+
+/* Cancel button for create-group flow */
+.tag-aliases-sidebar-cancel {
+    display: block;
+    width: 100%;
+    margin-top: 6px;
+    padding: 4px 8px;
+    font-size: 0.85em;
+    cursor: pointer;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    background: none;
+    color: var(--text-muted);
+    text-align: center;
+}
+
+.tag-aliases-sidebar-cancel:hover {
+    background: var(--interactive-hover);
+    color: var(--text-normal);
+}

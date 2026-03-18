@@ -7,7 +7,7 @@ import { TagAliasSettings } from './types';
 /** Default plugin settings applied on first load. */
 export const DEFAULT_SETTINGS: TagAliasSettings = {
     aliasGroups: [],
-    autoReplace: false,
+    autoReplace: true,
 };
 
 /** Plugin display name used in UI elements. */

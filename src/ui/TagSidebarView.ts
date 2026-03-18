@@ -82,7 +82,9 @@ export class TagSidebarView extends ItemView {
      */
     public refresh(): void {
         const displayList = this.buildDisplayList();
-        const conflicts = checkConflicts(this.plugin.aliasManager.getGroups());
+        // Pass vault tags so ConflictChecker can detect unmigrated aliases
+        const vaultTags = this.getVaultTags();
+        const conflicts = checkConflicts(this.plugin.aliasManager.getGroups(), vaultTags);
 
         this.renderConflictBanner(conflicts);
         this.renderTagList(displayList);
@@ -177,13 +179,19 @@ export class TagSidebarView extends ItemView {
      * 6. Add alias groups whose primaryTag has no vault usage (count=0)
      * 7. Apply search filter and sort
      */
+    /**
+     * Get all vault tags with usage counts from MetadataCache.
+     */
+    private getVaultTags(): Record<string, number> {
+        const metadataCache = this.app.metadataCache as any;
+        return typeof metadataCache.getTags === 'function'
+            ? metadataCache.getTags()
+            : {};
+    }
+
     private buildDisplayList(): DisplayTag[] {
         // Step 1: Get vault tags
-        const metadataCache = this.app.metadataCache as any;
-        const vaultTags: Record<string, number> =
-            typeof metadataCache.getTags === 'function'
-                ? metadataCache.getTags()
-                : {};
+        const vaultTags = this.getVaultTags();
 
         // Step 2: Get alias groups
         const groups = this.plugin.aliasManager.getGroups();
@@ -369,8 +377,8 @@ export class TagSidebarView extends ItemView {
             : '\u00B7';  // middle dot for standalone tags
         topRow.createSpan({ cls: 'tag-aliases-sidebar-indicator', text: indicator });
 
-        // Tag name
-        topRow.createSpan({ cls: 'tag-aliases-sidebar-tag-name', text: item.tag });
+        // Tag name (display without '#' prefix for cleaner look)
+        topRow.createSpan({ cls: 'tag-aliases-sidebar-tag-name', text: item.tag.replace(/^#/, '') });
 
         // Count badge (right-aligned)
         if (item.count > 0) {
@@ -409,10 +417,10 @@ export class TagSidebarView extends ItemView {
     private renderEditPanel(parent: HTMLElement, group: AliasGroup, tag: string): void {
         const panel = parent.createDiv('tag-aliases-sidebar-edit-panel');
 
-        // Render each alias with a delete button
+        // Render each alias with a delete button (display without '#')
         for (const alias of group.aliases) {
             const aliasRow = panel.createDiv('tag-aliases-sidebar-alias-row');
-            aliasRow.createSpan({ text: alias });
+            aliasRow.createSpan({ text: alias.replace(/^#/, '') });
 
             const deleteBtn = aliasRow.createEl('button', {
                 cls: 'tag-aliases-sidebar-alias-delete',
@@ -660,8 +668,15 @@ export class TagSidebarView extends ItemView {
 
     /**
      * Handle deleting an entire alias group.
+     * Shows a confirmation dialog before proceeding.
      */
     private async handleDeleteGroup(group: AliasGroup): Promise<void> {
+        const confirmed = confirm(
+            `Delete alias group "${group.primaryTag.replace(/^#/, '')}"?\n\n` +
+            `This will remove all ${group.aliases.length} alias(es). The primary tag will remain as a standalone tag.`
+        );
+        if (!confirmed) return;
+
         const updatedGroups = this.plugin.aliasManager.removeGroup(group.id);
 
         if (updatedGroups) {

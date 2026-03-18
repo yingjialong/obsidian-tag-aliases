@@ -78,3 +78,34 @@ describe('checkConflicts', () => {
         expect(conflicts[0].type).toBe('duplicate-alias');
     });
 });
+
+describe('checkConflicts with vaultTags', () => {
+    test('detects alias still used in vault (unmigrated)', () => {
+        const groups = [group('1', '#javascript', ['#js'])];
+        const vaultTags = { '#javascript': 10, '#js': 3 };
+        const conflicts = checkConflicts(groups, vaultTags);
+        expect(conflicts).toHaveLength(1);
+        expect(conflicts[0].type).toBe('unmigrated-alias');
+        expect(conflicts[0].tag).toBe('#js');
+        expect(conflicts[0].groupIds).toContain('1');
+    });
+
+    test('no unmigrated conflict when alias not in vault', () => {
+        const groups = [group('1', '#javascript', ['#js'])];
+        const vaultTags = { '#javascript': 10 };
+        expect(checkConflicts(groups, vaultTags)).toEqual([]);
+    });
+
+    test('no unmigrated conflict without vaultTags parameter', () => {
+        const groups = [group('1', '#javascript', ['#js'])];
+        expect(checkConflicts(groups)).toEqual([]);
+    });
+
+    test('case-insensitive vault tag matching', () => {
+        const groups = [group('1', '#技术', ['#tech'])];
+        const vaultTags = { '#Tech': 5 };
+        const conflicts = checkConflicts(groups, vaultTags);
+        expect(conflicts).toHaveLength(1);
+        expect(conflicts[0].type).toBe('unmigrated-alias');
+    });
+});

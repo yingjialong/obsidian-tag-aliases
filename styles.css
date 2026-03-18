@@ -284,8 +284,8 @@
 }
 
 .tag-aliases-sidebar-alias-delete:hover {
-    color: var(--text-error);
-    background: var(--background-modifier-error);
+    color: var(--text-on-accent);
+    background: var(--text-error);
 }
 
 /* Add alias row: input + button */

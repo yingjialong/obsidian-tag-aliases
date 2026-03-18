@@ -8,7 +8,7 @@ import { AliasGroup } from '../types';
 /** A single conflict detected between alias groups. */
 export interface Conflict {
     /** The type of conflict detected. */
-    type: 'duplicate-alias' | 'primary-as-alias' | 'duplicate-primary';
+    type: 'duplicate-alias' | 'primary-as-alias' | 'duplicate-primary' | 'unmigrated-alias';
     /** Human-readable description of the conflict. */
     description: string;
     /** The tag string involved in the conflict. */
@@ -28,9 +28,11 @@ export interface Conflict {
  * All comparisons are case-insensitive and ignore the leading '#'.
  *
  * @param groups - The alias groups to check
+ * @param vaultTags - Optional vault tag counts from MetadataCache.getTags().
+ *                    When provided, also detects aliases that still appear in the vault.
  * @returns An array of Conflict objects; empty if no conflicts found
  */
-export function checkConflicts(groups: AliasGroup[]): Conflict[] {
+export function checkConflicts(groups: AliasGroup[], vaultTags?: Record<string, number>): Conflict[] {
     const conflicts: Conflict[] = [];
 
     // Normalize a tag for comparison: strip '#' prefix and lowercase
@@ -85,6 +87,30 @@ export function checkConflicts(groups: AliasGroup[]): Conflict[] {
                 description: `"${tag}" is used as an alias in multiple groups.`,
                 tag, groupIds,
             });
+        }
+    }
+
+    // Check for aliases that still appear in the vault (unmigrated tags)
+    if (vaultTags) {
+        // Build alias -> group lookup
+        const aliasToGroup = new Map<string, AliasGroup>();
+        for (const group of groups) {
+            for (const alias of group.aliases) {
+                aliasToGroup.set(normalize(alias), group);
+            }
+        }
+
+        for (const vaultTag of Object.keys(vaultTags)) {
+            const norm = normalize(vaultTag);
+            const group = aliasToGroup.get(norm);
+            if (group) {
+                conflicts.push({
+                    type: 'unmigrated-alias',
+                    description: `"${vaultTag}" is used in vault but is an alias of "${group.primaryTag}". Run batch migration to fix.`,
+                    tag: vaultTag,
+                    groupIds: [group.id],
+                });
+            }
         }
     }
 

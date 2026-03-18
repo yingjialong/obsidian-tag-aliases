@@ -388,12 +388,12 @@ export class TagSidebarView extends ItemView {
             }
         }
 
-        // Expanded edit panel
+        // Expanded edit panel (rendered inside itemEl, directly below the tag row)
         if (isExpanded) {
             if (item.group) {
-                this.renderEditPanel(item.group, item.tag);
+                this.renderEditPanel(itemEl, item.group, item.tag);
             } else {
-                this.renderCreatePanel(item.tag);
+                this.renderCreatePanel(itemEl, item.tag);
             }
         }
     }
@@ -406,10 +406,8 @@ export class TagSidebarView extends ItemView {
      * Render the expanded edit panel for an existing alias group.
      * Shows alias rows with delete buttons, an add-alias input, and a delete group button.
      */
-    private renderEditPanel(group: AliasGroup, tag: string): void {
-        if (!this.listContainer) return;
-
-        const panel = this.listContainer.createDiv('tag-aliases-sidebar-edit-panel');
+    private renderEditPanel(parent: HTMLElement, group: AliasGroup, tag: string): void {
+        const panel = parent.createDiv('tag-aliases-sidebar-edit-panel');
 
         // Render each alias with a delete button
         for (const alias of group.aliases) {
@@ -490,10 +488,8 @@ export class TagSidebarView extends ItemView {
      * Render the expanded panel for a standalone tag (no group yet).
      * Allows creating a new alias group by adding the first alias.
      */
-    private renderCreatePanel(tag: string): void {
-        if (!this.listContainer) return;
-
-        const panel = this.listContainer.createDiv('tag-aliases-sidebar-edit-panel');
+    private renderCreatePanel(parent: HTMLElement, tag: string): void {
+        const panel = parent.createDiv('tag-aliases-sidebar-edit-panel');
 
         panel.createDiv({
             cls: 'tag-aliases-sidebar-no-aliases',

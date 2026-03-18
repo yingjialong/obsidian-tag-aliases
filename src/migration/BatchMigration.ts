@@ -12,6 +12,7 @@
 import { App, Modal, Notice, TFile, getAllTags, Setting } from 'obsidian';
 import { AliasManager } from '../core/AliasManager';
 import { MigrationPlan, MigrationChange, MigrationReplacement } from '../types';
+import { replaceTagsOutsideCode } from './tagReplacer';
 
 export class BatchMigration {
     private app: App;
@@ -172,16 +173,11 @@ export class BatchMigration {
                 const inlineReplacements = change.replacements.filter(r => r.location === 'inline');
                 const fmReplacements = change.replacements.filter(r => r.location === 'frontmatter');
 
-                // Replace inline tags
+                // Replace inline tags (skip code blocks, inline code, HTML comments)
                 if (inlineReplacements.length > 0) {
                     let content = await this.app.vault.read(file);
                     for (const { from, to } of inlineReplacements) {
-                        const escapedFrom = from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                        const regex = new RegExp(
-                            `(^|[\\s])${escapedFrom}(?=[\\s,;.!?\\)\\]\\}]|$)`,
-                            'gmu',
-                        );
-                        content = content.replace(regex, `$1${to}`);
+                        content = replaceTagsOutsideCode(content, from, to);
                     }
                     await this.app.vault.modify(file, content);
                 }
@@ -221,6 +217,8 @@ export class BatchMigration {
         new Notice(message);
         console.log('[TagAliases] Migration result:', { successCount, errorCount });
     }
+
+    // Replacement logic delegated to replaceTagsOutsideCode() in tagReplacer.ts
 }
 
 /**
@@ -230,6 +228,8 @@ export class BatchMigration {
 class MigrationPreviewModal extends Modal {
     private plan: MigrationPlan;
     private onResult: (confirmed: boolean) => void;
+    /** Guard to prevent double-resolving the promise */
+    private resolved = false;
 
     constructor(app: App, plan: MigrationPlan, onResult: (confirmed: boolean) => void) {
         super(app);
@@ -278,6 +278,7 @@ class MigrationPreviewModal extends Modal {
 
         const cancelBtn = buttonRow.createEl('button', { text: 'Cancel' });
         cancelBtn.addEventListener('click', () => {
+            this.resolved = true;
             this.onResult(false);
             this.close();
         });
@@ -287,6 +288,7 @@ class MigrationPreviewModal extends Modal {
             cls: 'mod-warning',
         });
         confirmBtn.addEventListener('click', () => {
+            this.resolved = true;
             this.onResult(true);
             this.close();
         });
@@ -294,5 +296,10 @@ class MigrationPreviewModal extends Modal {
 
     onClose(): void {
         this.contentEl.empty();
+        // Resolve the promise when closed via Esc or clicking outside the modal
+        if (!this.resolved) {
+            this.resolved = true;
+            this.onResult(false);
+        }
     }
 }

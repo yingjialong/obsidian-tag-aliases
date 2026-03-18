@@ -6,7 +6,7 @@
  * the canonical primary tag, keeping vault tags clean and consistent.
  */
 
-import { Plugin, Notice, debounce } from 'obsidian';
+import { Plugin, Notice, TFile, debounce } from 'obsidian';
 import { TagAliasSettings } from './types';
 import { DEFAULT_SETTINGS } from './constants';
 import { AliasManager } from './core/AliasManager';
@@ -129,7 +129,7 @@ export default class TagAliasesPlugin extends Plugin {
 
                 // Check constructor name for tag-related keywords
                 // Obsidian's built-in class names are not minified
-                if (this.looksLikeTagSuggest(s, name)) {
+                if (this.looksLikeTagSuggest(name)) {
                     this.removedBuiltInSuggest = suggests.splice(i, 1)[0];
                     this.removedBuiltInSuggestIndex = i;
                     console.log('[TagAliases] Removed built-in tag suggest:',
@@ -157,28 +157,13 @@ export default class TagAliasesPlugin extends Plugin {
      * Heuristic to identify the built-in tag suggest.
      * Checks constructor name and internal properties.
      */
-    private looksLikeTagSuggest(suggest: any, constructorName: string): boolean {
-        // Check by constructor name (Obsidian doesn't minify class names)
+    private looksLikeTagSuggest(constructorName: string): boolean {
+        // Identify by constructor name only (Obsidian doesn't minify class names).
+        // The toString() fallback was intentionally removed because it
+        // false-positives on third-party suggests whose minified source
+        // happens to contain '#' or 'tag'.
         const nameLower = constructorName.toLowerCase();
-        if (nameLower.includes('tag') && !nameLower.includes('tagalias')) {
-            return true;
-        }
-
-        // Fallback: check if it has tag-specific internal behavior
-        // by looking for properties that indicate tag completion
-        try {
-            if (suggest.onTrigger && suggest.getSuggestions) {
-                // Try to see if this suggest handles '#' triggers by inspecting source
-                const triggerStr = suggest.onTrigger.toString();
-                if (triggerStr.includes('#') || triggerStr.includes('tag')) {
-                    return true;
-                }
-            }
-        } catch {
-            // Ignore errors from toString() inspection
-        }
-
-        return false;
+        return nameLower.includes('tag') && !nameLower.includes('tagalias');
     }
 
     /**
@@ -214,19 +199,29 @@ export default class TagAliasesPlugin extends Plugin {
      * Uses the Editor API for replacement, which supports Ctrl+Z undo.
      */
     private registerAutoReplace(): void {
+        // Track the file that triggered the last metadata change,
+        // so we can verify it matches the active editor before replacing.
+        // This prevents cross-note replacement when the user switches
+        // tabs during the debounce window.
+        let lastChangedFile: TFile | null = null;
+
         const debouncedReplace = debounce(
             () => {
-                this.processAutoReplace();
+                if (lastChangedFile) {
+                    this.processAutoReplace(lastChangedFile);
+                }
+                lastChangedFile = null;
             },
             100,
             true,
         );
 
         this.registerEvent(
-            this.app.metadataCache.on('changed', () => {
+            this.app.metadataCache.on('changed', (file: TFile) => {
                 if (!this.settings.autoReplace || this.isReplacing) {
                     return;
                 }
+                lastChangedFile = file;
                 debouncedReplace();
             }),
         );
@@ -239,11 +234,18 @@ export default class TagAliasesPlugin extends Plugin {
      * A tag is considered "just finished" when the text before the cursor
      * matches: #tagname + whitespace (space, tab, newline equivalent).
      */
-    private processAutoReplace(): void {
+    private processAutoReplace(changedFile: TFile): void {
         try {
             const activeEditor = (this.app.workspace as any).activeEditor;
             const editor = activeEditor?.editor;
             if (!editor) return;
+
+            // Verify the changed file matches the active editor to prevent
+            // replacing in the wrong note after a tab switch during debounce
+            const activeFile = activeEditor?.file;
+            if (!activeFile || activeFile.path !== changedFile.path) {
+                return;
+            }
 
             const cursor = editor.getCursor();
             const line = editor.getLine(cursor.line);
@@ -285,7 +287,7 @@ export default class TagAliasesPlugin extends Plugin {
                 { line: cursor.line, ch: tagEndCh },
             );
 
-            new Notice(`Tag Aliases: ${tag} \u2192 ${primaryTag}`);
+            // new Notice(`Tag Aliases: ${tag} \u2192 ${primaryTag}`);
             console.log('[TagAliases] Auto-replaced:', tag, '\u2192', primaryTag);
 
             setTimeout(() => {

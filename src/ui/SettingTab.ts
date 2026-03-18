@@ -13,6 +13,7 @@ import TagAliasesPlugin from '../main';
 import { AliasGroupModal } from './AliasGroupModal';
 import { AliasGroup } from '../types';
 import { PLUGIN_NAME, EXPORT_FILE_NAME } from '../constants';
+import { AliasManager } from '../core/AliasManager';
 import { BatchMigration } from '../migration/BatchMigration';
 
 export class TagAliasesSettingTab extends PluginSettingTab {
@@ -71,7 +72,7 @@ export class TagAliasesSettingTab extends PluginSettingTab {
                                 const updated = this.plugin.aliasManager.addGroup(newGroup);
                                 this.plugin.settings.aliasGroups = updated;
                                 await this.plugin.saveSettings();
-                                new Notice(`Alias group "${newGroup.primaryTag}" created.`);
+                                // new Notice(`Alias group "${newGroup.primaryTag}" created.`);
                                 // Refresh the settings panel
                                 this.display();
                             },
@@ -108,7 +109,7 @@ export class TagAliasesSettingTab extends PluginSettingTab {
                                 if (result) {
                                     this.plugin.settings.aliasGroups = result;
                                     await this.plugin.saveSettings();
-                                    new Notice(`Alias group "${updatedGroup.primaryTag}" updated.`);
+                                    // new Notice(`Alias group "${updatedGroup.primaryTag}" updated.`);
                                     this.display();
                                 }
                             },
@@ -126,7 +127,7 @@ export class TagAliasesSettingTab extends PluginSettingTab {
                         if (result) {
                             this.plugin.settings.aliasGroups = result;
                             await this.plugin.saveSettings();
-                            new Notice(`Alias group "${group.primaryTag}" deleted.`);
+                            // new Notice(`Alias group "${group.primaryTag}" deleted.`);
                             this.display();
                         }
                     });
@@ -289,7 +290,20 @@ export class TagAliasesSettingTab extends PluginSettingTab {
                     }
                 }
 
-                // Replace current groups with imported ones
+                // Validate each group for format and inter-group conflicts
+                const tempManager = new AliasManager();
+                for (const g of importedGroups) {
+                    const error = tempManager.validate(g);
+                    if (error) {
+                        new Notice(`Import failed — group "${g.primaryTag}": ${error}`);
+                        console.warn('[TagAliases] Import validation error:', error, g);
+                        return;
+                    }
+                    // Add validated group so subsequent checks detect conflicts
+                    tempManager.addGroup(g);
+                }
+
+                // Replace current groups with validated imports
                 this.plugin.settings.aliasGroups = importedGroups;
                 this.plugin.aliasManager.buildIndex(importedGroups);
                 await this.plugin.saveSettings();

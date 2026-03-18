@@ -119,11 +119,12 @@ export class TagAliasSuggest extends EditorSuggest<TagSuggestionItem> {
         for (const item of vaultResults) {
             const group = this.aliasManager.findGroup(item.insertText);
             if (group) {
-                // This vault tag belongs to an alias group
+                // Save original vault tag as the matched alias before overwriting
+                const originalTag = item.insertText;
                 item.insertText = group.primaryTag;
                 item.displayText = group.primaryTag;
                 item.matchSource = 'alias';
-                item.matchedAlias = item.displayText;
+                item.matchedAlias = originalTag;
                 item.group = group;
             }
         }

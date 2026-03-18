@@ -100,17 +100,28 @@ export function checkConflicts(groups: AliasGroup[], vaultTags?: Record<string, 
             }
         }
 
+        // Pre-compute all normalized vault tag names for parent-check
+        const allNorms = Object.keys(vaultTags).map(t => normalize(t));
+
         for (const vaultTag of Object.keys(vaultTags)) {
             const norm = normalize(vaultTag);
             const group = aliasToGroup.get(norm);
-            if (group) {
-                conflicts.push({
-                    type: 'unmigrated-alias',
-                    description: `"${vaultTag}" is used in vault but is an alias of "${group.primaryTag}". Run batch migration to fix.`,
-                    tag: vaultTag,
-                    groupIds: [group.id],
-                });
-            }
+            if (!group) continue;
+
+            // Skip if this tag is only a parent prefix of other vault tags
+            // (e.g., "ai" when "ai/tools" exists — Obsidian's getTags()
+            //  includes parent segments, but no file actually uses "#ai")
+            const isParentOnly = allNorms.some(
+                other => other.startsWith(norm + '/'),
+            );
+            if (isParentOnly) continue;
+
+            conflicts.push({
+                type: 'unmigrated-alias',
+                description: `"${vaultTag}" is used in vault but is an alias of "${group.primaryTag}". Run batch migration to fix.`,
+                tag: vaultTag,
+                groupIds: [group.id],
+            });
         }
     }
 

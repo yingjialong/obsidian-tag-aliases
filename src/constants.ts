@@ -15,3 +15,6 @@ export const PLUGIN_NAME = 'Tag Aliases';
 
 /** File name for exported alias configuration. */
 export const EXPORT_FILE_NAME = 'tag-aliases-backup.json';
+
+/** Sidebar view type identifier for Obsidian's view registry. */
+export const VIEW_TYPE_TAG_ALIASES = 'tag-aliases-sidebar';

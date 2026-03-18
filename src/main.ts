@@ -8,10 +8,11 @@
 
 import { Plugin, Notice, TFile, debounce } from 'obsidian';
 import { TagAliasSettings } from './types';
-import { DEFAULT_SETTINGS } from './constants';
+import { DEFAULT_SETTINGS, VIEW_TYPE_TAG_ALIASES } from './constants';
 import { AliasManager } from './core/AliasManager';
 import { TagAliasesSettingTab } from './ui/SettingTab';
 import { TagAliasSuggest } from './suggest/TagAliasSuggest';
+import { TagSidebarView } from './ui/TagSidebarView';
 import { BatchMigration } from './migration/BatchMigration';
 
 export default class TagAliasesPlugin extends Plugin {
@@ -55,6 +56,21 @@ export default class TagAliasesPlugin extends Plugin {
         // Register auto-replace: detect alias tags and replace with primary tags
         this.registerAutoReplace();
 
+        // Register sidebar view
+        this.registerView(VIEW_TYPE_TAG_ALIASES, (leaf) => new TagSidebarView(leaf, this));
+
+        // Ribbon icon to toggle sidebar
+        this.addRibbonIcon('tags', 'Open Tag Aliases', () => {
+            this.activateSidebarView();
+        });
+
+        // Command to toggle sidebar
+        this.addCommand({
+            id: 'open-tag-aliases-sidebar',
+            name: 'Open Tag Aliases sidebar',
+            callback: () => this.activateSidebarView(),
+        });
+
         // Register migration command
         this.addCommand({
             id: 'migrate-alias-tags',
@@ -73,6 +89,7 @@ export default class TagAliasesPlugin extends Plugin {
      * Restores the built-in tag suggest if it was removed.
      */
     onunload(): void {
+        this.app.workspace.detachLeavesOfType(VIEW_TYPE_TAG_ALIASES);
         this.restoreBuiltInTagSuggest();
         console.log('[TagAliases] Plugin unloaded.');
     }
@@ -95,6 +112,22 @@ export default class TagAliasesPlugin extends Plugin {
     async saveSettings(): Promise<void> {
         await this.saveData(this.settings);
         console.log('[TagAliases] Settings saved.');
+    }
+
+    /**
+     * Open or reveal the Tag Aliases sidebar panel.
+     * Creates a new leaf in the right sidebar if none exists.
+     */
+    async activateSidebarView(): Promise<void> {
+        const { workspace } = this.app;
+        let leaf = workspace.getLeavesOfType(VIEW_TYPE_TAG_ALIASES)[0];
+        if (!leaf) {
+            const rightLeaf = workspace.getRightLeaf(false);
+            if (!rightLeaf) return;
+            await rightLeaf.setViewState({ type: VIEW_TYPE_TAG_ALIASES, active: true });
+            leaf = rightLeaf;
+        }
+        workspace.revealLeaf(leaf);
     }
 
     /**

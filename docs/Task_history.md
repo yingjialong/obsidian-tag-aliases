@@ -13,3 +13,4 @@
 | phase6-migration | Phase 6: 批量迁移 | 2026-03-15 | BatchMigration（扫描、预览 Modal、执行替换），注册命令和 SettingTab 按钮 | 已完成 |
 | phase7-export-import | Phase 7: 导出/导入 | 2026-03-15 | 已在 Phase 3 SettingTab 中实现（handleExport/handleImport），JSON 文件备份恢复 | 已完成 |
 | phase8-finalize | Phase 8: 收尾 | 2026-03-15 | 完善 CLAUDE.md 架构说明、更新 Task_history、代码自检（英文注释/日志完整性） | 已完成 |
+| full-code-review | 项目全量代码审查 | 2026-03-16 | 阅读 README 与任务文档、全量审查核心源码与配置、执行构建验证、输出分级 findings | 已完成，结论为 Request Changes |

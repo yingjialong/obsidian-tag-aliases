@@ -140,10 +140,11 @@
     flex-shrink: 0;
 }
 
-/* Conflict banner: warning background */
+/* Conflict banner: left-border accent style (readable in all themes) */
 .tag-aliases-conflict-banner {
     padding: 8px 10px;
-    background: var(--background-modifier-error);
+    background: var(--background-secondary);
+    border-left: 3px solid var(--text-error);
     border-bottom: 1px solid var(--background-modifier-border);
     font-size: 0.85em;
 }
@@ -161,7 +162,7 @@
 
 .tag-aliases-conflict-banner li {
     margin-bottom: 2px;
-    color: var(--text-error);
+    color: var(--text-normal);
 }
 
 /* Scrollable tag list container */

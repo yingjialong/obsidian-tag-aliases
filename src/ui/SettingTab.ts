@@ -1,8 +1,8 @@
 /**
- * SettingTab - Plugin settings panel for managing tag aliases.
+ * SettingTab - Plugin settings panel.
  *
  * Sections:
- * 1. Alias Group Management - List, create, edit, delete alias groups
+ * 1. Alias Groups - Summary + open sidebar button (CRUD is in sidebar)
  * 2. Behavior Settings - Auto-replace toggle
  * 3. Data Migration - Batch scan & replace button
  * 4. Backup & Restore - Export / Import alias configuration
@@ -10,7 +10,6 @@
 
 import { App, PluginSettingTab, Setting, Notice } from 'obsidian';
 import TagAliasesPlugin from '../main';
-import { AliasGroupModal } from './AliasGroupModal';
 import { AliasGroup } from '../types';
 import { PLUGIN_NAME, EXPORT_FILE_NAME } from '../constants';
 import { AliasManager } from '../core/AliasManager';
@@ -39,97 +38,23 @@ export class TagAliasesSettingTab extends PluginSettingTab {
     }
 
     /**
-     * Render the alias group management section.
+     * Render alias group summary with a button to open the sidebar.
+     * CRUD operations are handled in the sidebar panel.
      */
     private renderAliasGroupSection(container: HTMLElement): void {
         container.createEl('h2', { text: 'Alias Groups' });
 
         const groups = this.plugin.aliasManager.getGroups();
+        const count = groups.length;
 
-        if (groups.length === 0) {
-            container.createEl('p', {
-                text: 'No alias groups defined. Click the button below to create one.',
-                cls: 'setting-item-description',
-            });
-        } else {
-            // Render each alias group as a setting item
-            for (const group of groups) {
-                this.renderGroupItem(container, group);
-            }
-        }
-
-        // "Add New Alias Group" button
         new Setting(container)
+            .setName(`${count} alias group${count !== 1 ? 's' : ''} configured`)
+            .setDesc('Use the sidebar panel to create, edit, and delete alias groups.')
             .addButton(btn => {
-                btn.setButtonText('+ New Alias Group')
+                btn.setButtonText('Open Sidebar')
                     .setCta()
                     .onClick(() => {
-                        const modal = new AliasGroupModal(
-                            this.app,
-                            this.plugin.aliasManager,
-                            async (newGroup) => {
-                                // Add group and persist
-                                const updated = this.plugin.aliasManager.addGroup(newGroup);
-                                this.plugin.settings.aliasGroups = updated;
-                                await this.plugin.saveSettings();
-                                // new Notice(`Alias group "${newGroup.primaryTag}" created.`);
-                                // Refresh the settings panel
-                                this.display();
-                            },
-                        );
-                        modal.open();
-                    });
-            });
-    }
-
-    /**
-     * Render a single alias group item with edit/delete buttons.
-     */
-    private renderGroupItem(container: HTMLElement, group: AliasGroup): void {
-        const aliasText = group.aliases.join(', ');
-        const desc = group.description
-            ? `${aliasText}\n${group.description}`
-            : aliasText;
-
-        new Setting(container)
-            .setName(group.primaryTag)
-            .setDesc(desc)
-            .addButton(btn => {
-                btn.setButtonText('Edit')
-                    .onClick(() => {
-                        const modal = new AliasGroupModal(
-                            this.app,
-                            this.plugin.aliasManager,
-                            async (updatedGroup) => {
-                                // Update group and persist
-                                const result = this.plugin.aliasManager.updateGroup(
-                                    group.id,
-                                    updatedGroup,
-                                );
-                                if (result) {
-                                    this.plugin.settings.aliasGroups = result;
-                                    await this.plugin.saveSettings();
-                                    // new Notice(`Alias group "${updatedGroup.primaryTag}" updated.`);
-                                    this.display();
-                                }
-                            },
-                            group,
-                        );
-                        modal.open();
-                    });
-            })
-            .addButton(btn => {
-                btn.setButtonText('Delete')
-                    .setWarning()
-                    .onClick(async () => {
-                        // Remove group and persist
-                        const result = this.plugin.aliasManager.removeGroup(group.id);
-                        if (result) {
-                            this.plugin.settings.aliasGroups = result;
-                            await this.plugin.saveSettings();
-                            // new Notice(`Alias group "${group.primaryTag}" deleted.`);
-                            this.display();
-                        }
+                        this.plugin.activateSidebarView();
                     });
             });
     }

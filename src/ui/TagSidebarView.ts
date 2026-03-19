@@ -68,6 +68,13 @@ export class TagSidebarView extends ItemView {
         // Scrollable tag list container
         this.listContainer = container.createDiv('tag-aliases-sidebar-list');
 
+        // Auto-refresh when MetadataCache finishes re-indexing files
+        // (e.g., after batch migration or manual tag edits in notes)
+        const debouncedRefresh = debounce(() => this.refresh(), 500, true);
+        this.registerEvent(
+            this.app.metadataCache.on('resolved', debouncedRefresh),
+        );
+
         // Initial render
         this.refresh();
     }

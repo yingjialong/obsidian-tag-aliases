@@ -77,7 +77,6 @@ export class TagAliasesSettingTab extends PluginSettingTab {
                     .onChange(async (value) => {
                         this.plugin.settings.autoReplace = value;
                         await this.plugin.saveSettings();
-                        console.log('[TagAliases] Auto-replace set to:', value);
                     });
             });
     }
@@ -171,7 +170,6 @@ export class TagAliasesSettingTab extends PluginSettingTab {
 
             await this.app.vault.create(fileName, json);
             new Notice(`Exported ${groups.length} alias group(s) to "${fileName}".`);
-            console.log('[TagAliases] Export completed:', fileName);
         } catch (err) {
             console.error('[TagAliases] Export failed:', err);
             new Notice('Export failed. Check the console for details.');
@@ -234,7 +232,6 @@ export class TagAliasesSettingTab extends PluginSettingTab {
                 await this.plugin.saveSettings();
 
                 new Notice(`Imported ${importedGroups.length} alias group(s) successfully.`);
-                console.log('[TagAliases] Import completed:', importedGroups.length, 'groups');
 
                 // Refresh settings panel
                 this.display();

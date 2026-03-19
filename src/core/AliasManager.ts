@@ -37,11 +37,6 @@ export class AliasManager {
             }
         }
 
-        console.log('[TagAliases] Index built.', {
-            groups: this.groups.length,
-            primaryTags: this.primaryIndex.size,
-            aliases: this.aliasIndex.size,
-        });
     }
 
     /**
@@ -138,7 +133,6 @@ export class AliasManager {
     addGroup(group: AliasGroup): AliasGroup[] {
         this.groups.push(group);
         this.buildIndex(this.groups);
-        console.log('[TagAliases] Group added:', group.primaryTag);
         return [...this.groups];
     }
 
@@ -155,7 +149,6 @@ export class AliasManager {
 
         this.groups[index] = { ...this.groups[index], ...updates };
         this.buildIndex(this.groups);
-        console.log('[TagAliases] Group updated:', this.groups[index].primaryTag);
         return [...this.groups];
     }
 
@@ -170,9 +163,8 @@ export class AliasManager {
             return null;
         }
 
-        const removed = this.groups.splice(index, 1)[0];
+        this.groups.splice(index, 1);
         this.buildIndex(this.groups);
-        console.log('[TagAliases] Group removed:', removed.primaryTag);
         return [...this.groups];
     }
 

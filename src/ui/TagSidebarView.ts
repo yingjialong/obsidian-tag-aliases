@@ -5,7 +5,7 @@
  * Supports inline alias editing, conflict detection, search, and sort.
  */
 
-import { ItemView, WorkspaceLeaf, debounce } from 'obsidian';
+import { ItemView, Modal, WorkspaceLeaf, debounce } from 'obsidian';
 import type TagAliasesPlugin from '../main';
 import { VIEW_TYPE_TAG_ALIASES } from '../constants';
 import { AliasGroup } from '../types';
@@ -614,11 +614,9 @@ export class TagSidebarView extends ItemView {
         if (newAliases.length === 0) {
             // Last alias removed: delete the entire group
             updatedGroups = this.plugin.aliasManager.removeGroup(group.id);
-            console.log('[TagAliases] Sidebar: removed group (last alias deleted)', group.primaryTag);
         } else {
             // Update group with the remaining aliases
             updatedGroups = this.plugin.aliasManager.updateGroup(group.id, { aliases: newAliases });
-            console.log('[TagAliases] Sidebar: removed alias', alias, 'from', group.primaryTag);
         }
 
         if (updatedGroups) {
@@ -650,7 +648,6 @@ export class TagSidebarView extends ItemView {
         const validationError = this.plugin.aliasManager.validate(tempGroup, group.id);
         if (validationError) {
             errorEl.textContent = validationError;
-            console.log('[TagAliases] Sidebar: validation failed for alias', newAlias, '-', validationError);
             return true;
         }
 
@@ -662,7 +659,6 @@ export class TagSidebarView extends ItemView {
         if (updatedGroups) {
             this.plugin.settings.aliasGroups = updatedGroups;
             await this.plugin.saveSettings();
-            console.log('[TagAliases] Sidebar: added alias', newAlias, 'to', group.primaryTag);
         }
 
         this.refresh();
@@ -690,7 +686,6 @@ export class TagSidebarView extends ItemView {
         const validationError = this.plugin.aliasManager.validate(newGroup);
         if (validationError) {
             errorEl.textContent = validationError;
-            console.log('[TagAliases] Sidebar: validation failed for new group', primaryTag, '-', validationError);
             return true;
         }
 
@@ -698,7 +693,6 @@ export class TagSidebarView extends ItemView {
         const updatedGroups = this.plugin.aliasManager.addGroup(newGroup);
         this.plugin.settings.aliasGroups = updatedGroups;
         await this.plugin.saveSettings();
-        console.log('[TagAliases] Sidebar: created new group', primaryTag, 'with alias', firstAlias);
 
         this.refresh();
         return false;
@@ -709,9 +703,11 @@ export class TagSidebarView extends ItemView {
      * Shows a confirmation dialog before proceeding.
      */
     private async handleDeleteGroup(group: AliasGroup): Promise<void> {
-        const confirmed = confirm(
-            `Delete alias group "${group.primaryTag.replace(/^#/, '')}"?\n\n` +
-            `This will remove all ${group.aliases.length} alias(es). The primary tag will remain as a standalone tag.`
+        const tagName = group.primaryTag.replace(/^#/, '');
+        const confirmed = await showConfirmModal(
+            this.app,
+            'Delete Alias Group',
+            `Delete alias group "${tagName}"? This will remove all ${group.aliases.length} alias(es). The primary tag will remain as a standalone tag.`,
         );
         if (!confirmed) return;
 
@@ -720,10 +716,57 @@ export class TagSidebarView extends ItemView {
         if (updatedGroups) {
             this.plugin.settings.aliasGroups = updatedGroups;
             await this.plugin.saveSettings();
-            console.log('[TagAliases] Sidebar: deleted group', group.primaryTag);
         }
 
         this.expandedTag = null;
         this.refresh();
     }
+}
+
+/**
+ * Simple confirmation modal using Obsidian's Modal API.
+ * Returns a promise that resolves to true (confirm) or false (cancel).
+ */
+function showConfirmModal(
+    app: import('obsidian').App,
+    title: string,
+    message: string,
+): Promise<boolean> {
+    return new Promise((resolve) => {
+        let resolved = false;
+        const modal = new (class extends Modal {
+            onOpen(): void {
+                const { contentEl } = this;
+                contentEl.createEl('h3', { text: title });
+                contentEl.createEl('p', { text: message });
+
+                const btnRow = contentEl.createDiv({ cls: 'tag-aliases-button-row' });
+
+                const cancelBtn = btnRow.createEl('button', { text: 'Cancel' });
+                cancelBtn.addEventListener('click', () => {
+                    resolved = true;
+                    resolve(false);
+                    this.close();
+                });
+
+                const confirmBtn = btnRow.createEl('button', {
+                    text: 'Delete',
+                    cls: 'mod-warning',
+                });
+                confirmBtn.addEventListener('click', () => {
+                    resolved = true;
+                    resolve(true);
+                    this.close();
+                });
+            }
+            onClose(): void {
+                this.contentEl.empty();
+                if (!resolved) {
+                    resolved = true;
+                    resolve(false);
+                }
+            }
+        })(app);
+        modal.open();
+    });
 }

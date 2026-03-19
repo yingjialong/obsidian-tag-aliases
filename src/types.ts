@@ -21,7 +21,7 @@ export interface TagAliasSettings {
     /**
      * Whether to auto-replace alias tags with primary tags
      * when the user bypasses the suggestion popup.
-     * Defaults to false.
+     * Defaults to true.
      */
     autoReplace: boolean;
 }

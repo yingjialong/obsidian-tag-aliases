@@ -6,7 +6,7 @@
  * the canonical primary tag, keeping vault tags clean and consistent.
  */
 
-import { Plugin, Notice, TFile, debounce } from 'obsidian';
+import { Plugin, TFile, debounce } from 'obsidian';
 import { TagAliasSettings } from './types';
 import { DEFAULT_SETTINGS, VIEW_TYPE_TAG_ALIASES } from './constants';
 import { AliasManager } from './core/AliasManager';
@@ -34,8 +34,6 @@ export default class TagAliasesPlugin extends Plugin {
      * Registers settings, commands, editor suggest, and event listeners.
      */
     async onload(): Promise<void> {
-        console.log('[TagAliases] Loading plugin...');
-
         // Load persisted settings and build alias index
         await this.loadSettings();
         this.aliasManager.buildIndex(this.settings.aliasGroups);
@@ -81,7 +79,6 @@ export default class TagAliasesPlugin extends Plugin {
             },
         });
 
-        console.log('[TagAliases] Plugin loaded successfully.');
     }
 
     /**
@@ -91,7 +88,6 @@ export default class TagAliasesPlugin extends Plugin {
     onunload(): void {
         this.app.workspace.detachLeavesOfType(VIEW_TYPE_TAG_ALIASES);
         this.restoreBuiltInTagSuggest();
-        console.log('[TagAliases] Plugin unloaded.');
     }
 
     /**
@@ -100,10 +96,6 @@ export default class TagAliasesPlugin extends Plugin {
     async loadSettings(): Promise<void> {
         const data = await this.loadData();
         this.settings = Object.assign({}, DEFAULT_SETTINGS, data);
-        console.log('[TagAliases] Settings loaded.', {
-            groupCount: this.settings.aliasGroups.length,
-            autoReplace: this.settings.autoReplace,
-        });
     }
 
     /**
@@ -111,7 +103,6 @@ export default class TagAliasesPlugin extends Plugin {
      */
     async saveSettings(): Promise<void> {
         await this.saveData(this.settings);
-        console.log('[TagAliases] Settings saved.');
     }
 
     /**
@@ -148,10 +139,6 @@ export default class TagAliasesPlugin extends Plugin {
 
             const suggests: any[] = editorSuggest.suggests;
 
-            // Log all suggests for debugging
-            console.log('[TagAliases] Registered suggests:',
-                suggests.map((s: any, i: number) => `[${i}] ${s.constructor?.name}`));
-
             // Find and remove the built-in tag suggest
             // Identify it by: not our suggest, and its constructor name hints at tags
             for (let i = 0; i < suggests.length; i++) {
@@ -165,8 +152,6 @@ export default class TagAliasesPlugin extends Plugin {
                 if (this.looksLikeTagSuggest(name)) {
                     this.removedBuiltInSuggest = suggests.splice(i, 1)[0];
                     this.removedBuiltInSuggestIndex = i;
-                    console.log('[TagAliases] Removed built-in tag suggest:',
-                        name, 'at index', i);
                     break;
                 }
             }
@@ -176,11 +161,8 @@ export default class TagAliasesPlugin extends Plugin {
             if (ourIndex > 0) {
                 const [ours] = suggests.splice(ourIndex, 1);
                 suggests.unshift(ours);
-                console.log('[TagAliases] Moved our suggest to front, index 0');
             }
 
-            console.log('[TagAliases] Final suggests order:',
-                suggests.map((s: any, i: number) => `[${i}] ${s.constructor?.name}`));
         } catch (err) {
             console.error('[TagAliases] Failed to override built-in tag suggest:', err);
         }
@@ -213,7 +195,6 @@ export default class TagAliasesPlugin extends Plugin {
             // Insert back at original position (or end if index is invalid)
             const insertAt = Math.min(this.removedBuiltInSuggestIndex, suggests.length);
             suggests.splice(insertAt, 0, this.removedBuiltInSuggest);
-            console.log('[TagAliases] Restored built-in tag suggest at index', insertAt);
 
             this.removedBuiltInSuggest = null;
             this.removedBuiltInSuggestIndex = -1;
@@ -298,15 +279,8 @@ export default class TagAliasesPlugin extends Plugin {
 
             const primaryTag = this.aliasManager.getPrimaryTag(tag);
 
-            // Calculate the exact position of the tag in the line
-            // match[0] includes optional leading whitespace + tag + trailing whitespace
-            // match[1] is just the tag (#tagname)
+            // Find exact position of the tag in the line
             const fullMatchStart = match.index;
-            const leadingLen = match[0].length - match[1].length
-                - (match[0].length - match[0].trimStart().length > 0
-                    ? 0 : 0);
-
-            // Find exact tag start by searching for '#' in the match
             const tagStartInMatch = match[0].indexOf('#');
             const tagStartCh = fullMatchStart + tagStartInMatch;
             const tagEndCh = tagStartCh + tag.length;
@@ -320,8 +294,6 @@ export default class TagAliasesPlugin extends Plugin {
                 { line: cursor.line, ch: tagEndCh },
             );
 
-            // new Notice(`Tag Aliases: ${tag} \u2192 ${primaryTag}`);
-            console.log('[TagAliases] Auto-replaced:', tag, '\u2192', primaryTag);
 
             setTimeout(() => {
                 this.isReplacing = false;

@@ -216,9 +216,6 @@ export class TagAliasSuggest extends EditorSuggest<TagSuggestionItem> {
         // Move cursor to after the inserted tag + space
         const newCh = start.ch + item.insertText.length + 1;
         editor.setCursor({ line: start.line, ch: newCh });
-
-        console.log('[TagAliases] Tag inserted:', item.insertText,
-            item.matchSource === 'alias' ? `(via alias: ${item.matchedAlias})` : '');
     }
 
     /**

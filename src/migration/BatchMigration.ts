@@ -9,7 +9,7 @@
  * 5. Report results via Notice
  */
 
-import { App, Modal, Notice, TFile, getAllTags, Setting } from 'obsidian';
+import { App, Modal, Notice, TFile, getAllTags } from 'obsidian';
 import { AliasManager } from '../core/AliasManager';
 import { MigrationPlan, MigrationChange, MigrationReplacement } from '../types';
 import { replaceTagsOutsideCode } from './tagReplacer';
@@ -43,11 +43,6 @@ export class BatchMigration {
         }
 
         // Step 2: Show preview modal for confirmation
-        console.log('[TagAliases] Migration plan:', {
-            files: plan.changes.length,
-            replacements: plan.totalReplacements,
-        });
-
         const confirmed = await this.showPreview(plan);
         if (!confirmed) {
             new Notice('Migration cancelled.');
@@ -215,7 +210,6 @@ export class BatchMigration {
             ? `Migration complete: ${successCount} file(s) updated successfully.`
             : `Migration complete: ${successCount} file(s) updated, ${errorCount} error(s).`;
         new Notice(message);
-        console.log('[TagAliases] Migration result:', { successCount, errorCount });
     }
 
     // Replacement logic delegated to replaceTagsOutsideCode() in tagReplacer.ts
@@ -250,20 +244,15 @@ class MigrationPreviewModal extends Modal {
         const listContainer = contentEl.createDiv({
             cls: 'tag-aliases-migration-list',
         });
-        listContainer.style.maxHeight = '300px';
-        listContainer.style.overflow = 'auto';
-        listContainer.style.marginBottom = '1em';
 
         for (const change of this.plan.changes) {
             const fileItem = listContainer.createDiv({
                 cls: 'tag-aliases-migration-file',
             });
-            fileItem.style.marginBottom = '8px';
 
             fileItem.createEl('strong', { text: change.filePath });
 
             const ul = fileItem.createEl('ul');
-            ul.style.margin = '4px 0';
             for (const r of change.replacements) {
                 ul.createEl('li', {
                     text: `${r.from} \u2192 ${r.to} (${r.location})`,

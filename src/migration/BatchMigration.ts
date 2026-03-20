@@ -9,7 +9,7 @@
  * 5. Report results via Notice
  */
 
-import { App, Modal, Notice, TFile, getAllTags } from 'obsidian';
+import { App, CachedMetadata, Modal, Notice, TFile, getAllTags } from 'obsidian';
 import { AliasManager } from '../core/AliasManager';
 import { MigrationPlan, MigrationChange, MigrationReplacement } from '../types';
 import { replaceTagsOutsideCode } from './tagReplacer';
@@ -113,7 +113,7 @@ export class BatchMigration {
     /**
      * Check if a tag exists in the file's YAML frontmatter.
      */
-    private isTagInFrontmatter(tag: string, cache: any): boolean {
+    private isTagInFrontmatter(tag: string, cache: CachedMetadata): boolean {
         if (!cache.frontmatter?.tags) return false;
 
         const fmTags: string[] = Array.isArray(cache.frontmatter.tags)
@@ -235,7 +235,7 @@ class MigrationPreviewModal extends Modal {
         const { contentEl } = this;
         contentEl.empty();
 
-        contentEl.createEl('h2', { text: 'Migration Preview' });
+        contentEl.createEl('h2', { text: 'Migration preview' });
         contentEl.createEl('p', {
             text: `Found ${this.plan.totalReplacements} alias tag(s) in ${this.plan.changes.length} file(s) to replace:`,
         });

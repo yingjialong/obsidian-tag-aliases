@@ -56,7 +56,7 @@ export function checkConflicts(groups: AliasGroup[], vaultTags?: Record<string, 
     }
 
     // Scan for conflicts: any normalized tag with owners from 2+ distinct groups
-    for (const [norm, owners] of tagOwners) {
+    for (const [, owners] of tagOwners) {
         if (owners.length <= 1) continue;
 
         // Deduplicate group IDs (same alias within one group is not a conflict)

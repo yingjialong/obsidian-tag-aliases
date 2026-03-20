@@ -47,7 +47,7 @@ export class TagSidebarView extends ItemView {
     }
 
     getViewType(): string { return VIEW_TYPE_TAG_ALIASES; }
-    getDisplayText(): string { return 'Tag Aliases'; }
+    getDisplayText(): string { return 'Tag aliases'; }
     getIcon(): string { return 'tags'; }
 
     /**
@@ -197,13 +197,15 @@ export class TagSidebarView extends ItemView {
             // "Run Migration" button
             const migrateBtn = banner.createEl('button', {
                 cls: 'tag-aliases-conflict-migrate-btn',
-                text: 'Run Migration',
+                text: 'Run migration',
             });
-            migrateBtn.addEventListener('click', async () => {
-                const { BatchMigration } = await import('../migration/BatchMigration');
-                const migration = new BatchMigration(this.app, this.plugin.aliasManager);
-                await migration.run();
-                this.refresh();
+            migrateBtn.addEventListener('click', () => {
+                void import('../migration/BatchMigration').then(({ BatchMigration }) => {
+                    const migration = new BatchMigration(this.app, this.plugin.aliasManager);
+                    return migration.run();
+                }).then(() => {
+                    this.refresh();
+                });
             });
         }
     }
@@ -228,7 +230,8 @@ export class TagSidebarView extends ItemView {
      * Get all vault tags with usage counts from MetadataCache.
      */
     private getVaultTags(): Record<string, number> {
-        const metadataCache = this.app.metadataCache as any;
+        const metadataCache = this.app.metadataCache as unknown as
+            { getTags?: () => Record<string, number> };
         return typeof metadataCache.getTags === 'function'
             ? metadataCache.getTags()
             : {};
@@ -474,9 +477,9 @@ export class TagSidebarView extends ItemView {
             });
 
             // Delete alias click handler
-            deleteBtn.addEventListener('click', async (e) => {
+            deleteBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                await this.handleDeleteAlias(group, alias);
+                void this.handleDeleteAlias(group, alias);
             });
         }
 
@@ -508,13 +511,13 @@ export class TagSidebarView extends ItemView {
 
         addBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            doAdd();
+            void doAdd();
         });
 
         addInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 e.stopPropagation();
-                doAdd();
+                void doAdd();
             }
         });
 
@@ -524,12 +527,12 @@ export class TagSidebarView extends ItemView {
         // Delete group button
         const deleteGroupBtn = panel.createEl('button', {
             cls: 'tag-aliases-sidebar-delete-group',
-            text: 'Delete Group',
+            text: 'Delete group',
         });
 
-        deleteGroupBtn.addEventListener('click', async (e) => {
+        deleteGroupBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            await this.handleDeleteGroup(group);
+            void this.handleDeleteGroup(group);
         });
     }
 
@@ -579,13 +582,13 @@ export class TagSidebarView extends ItemView {
 
         addBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            doCreate();
+            void doCreate();
         });
 
         addInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 e.stopPropagation();
-                doCreate();
+                void doCreate();
             }
         });
 
@@ -713,7 +716,7 @@ export class TagSidebarView extends ItemView {
         const tagName = group.primaryTag.replace(/^#/, '');
         const confirmed = await showConfirmModal(
             this.app,
-            'Delete Alias Group',
+            'Delete alias group',
             `Delete alias group "${tagName}"? This will remove all ${group.aliases.length} alias(es). The primary tag will remain as a standalone tag.`,
         );
         if (!confirmed) return;

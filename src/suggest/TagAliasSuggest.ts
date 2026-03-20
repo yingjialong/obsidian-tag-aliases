@@ -225,9 +225,10 @@ export class TagAliasSuggest extends EditorSuggest<TagSuggestionItem> {
      */
     private getVaultTags(): Record<string, number> {
         // getTags() is undocumented but widely used and stable
-        const metadataCache = this.app.metadataCache as any;
+        const metadataCache = this.app.metadataCache as unknown as
+            { getTags?: () => Record<string, number> };
         if (typeof metadataCache.getTags === 'function') {
-            return metadataCache.getTags() as Record<string, number>;
+            return metadataCache.getTags();
         }
 
         // Fallback: manually enumerate all files and collect tags

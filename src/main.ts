@@ -6,7 +6,7 @@
  * the canonical primary tag, keeping vault tags clean and consistent.
  */
 
-import { Plugin, TFile, debounce } from 'obsidian';
+import { EditorSuggest, Plugin, TFile, debounce } from 'obsidian';
 import { TagAliasSettings } from './types';
 import { DEFAULT_SETTINGS, VIEW_TYPE_TAG_ALIASES } from './constants';
 import { AliasManager } from './core/AliasManager';
@@ -14,6 +14,23 @@ import { TagAliasesSettingTab } from './ui/SettingTab';
 import { TagAliasSuggest } from './suggest/TagAliasSuggest';
 import { TagSidebarView } from './ui/TagSidebarView';
 import { BatchMigration } from './migration/BatchMigration';
+
+/**
+ * Minimal interface for Obsidian's internal EditorSuggest manager.
+ * This API is undocumented but stable and widely used by community plugins.
+ */
+interface EditorSuggestManager {
+    suggests: Array<EditorSuggest<unknown>>;
+}
+
+/**
+ * Minimal interface for Obsidian's internal active editor.
+ * Provides access to the current editor instance and file.
+ */
+interface ActiveEditorRef {
+    editor?: import('obsidian').Editor;
+    file?: TFile;
+}
 
 export default class TagAliasesPlugin extends Plugin {
     /** Current plugin settings. */
@@ -25,7 +42,7 @@ export default class TagAliasesPlugin extends Plugin {
     /** Reference to our EditorSuggest instance. */
     private tagAliasSuggest: TagAliasSuggest | null = null;
     /** Saved built-in tag suggest, restored on unload. */
-    private removedBuiltInSuggest: any = null;
+    private removedBuiltInSuggest: EditorSuggest<unknown> | null = null;
     /** Index of the removed built-in suggest, for restoring at the same position. */
     private removedBuiltInSuggestIndex = -1;
 
@@ -58,21 +75,21 @@ export default class TagAliasesPlugin extends Plugin {
         this.registerView(VIEW_TYPE_TAG_ALIASES, (leaf) => new TagSidebarView(leaf, this));
 
         // Ribbon icon to toggle sidebar
-        this.addRibbonIcon('tags', 'Open Tag Aliases', () => {
-            this.activateSidebarView();
+        this.addRibbonIcon('tags', 'Open sidebar', () => {
+            void this.activateSidebarView();
         });
 
         // Command to toggle sidebar
         this.addCommand({
-            id: 'open-tag-aliases-sidebar',
-            name: 'Open Tag Aliases sidebar',
-            callback: () => this.activateSidebarView(),
+            id: 'open-sidebar',
+            name: 'Open sidebar',
+            callback: () => { void this.activateSidebarView(); },
         });
 
         // Register migration command
         this.addCommand({
-            id: 'migrate-alias-tags',
-            name: 'Scan & replace alias tags in vault',
+            id: 'migrate-tags',
+            name: 'Scan & replace alias tags',
             callback: async () => {
                 const migration = new BatchMigration(this.app, this.aliasManager);
                 await migration.run();
@@ -86,7 +103,6 @@ export default class TagAliasesPlugin extends Plugin {
      * Restores the built-in tag suggest if it was removed.
      */
     onunload(): void {
-        this.app.workspace.detachLeavesOfType(VIEW_TYPE_TAG_ALIASES);
         this.restoreBuiltInTagSuggest();
     }
 
@@ -118,7 +134,7 @@ export default class TagAliasesPlugin extends Plugin {
             await rightLeaf.setViewState({ type: VIEW_TYPE_TAG_ALIASES, active: true });
             leaf = rightLeaf;
         }
-        workspace.revealLeaf(leaf);
+        void workspace.revealLeaf(leaf);
     }
 
     /**
@@ -131,13 +147,15 @@ export default class TagAliasesPlugin extends Plugin {
      */
     private overrideBuiltInTagSuggest(): void {
         try {
-            const editorSuggest = (this.app.workspace as any).editorSuggest;
+            const workspace = this.app.workspace as unknown as
+                { editorSuggest?: EditorSuggestManager };
+            const editorSuggest = workspace.editorSuggest;
             if (!editorSuggest?.suggests) {
                 console.warn('[TagAliases] Cannot access editorSuggest.suggests');
                 return;
             }
 
-            const suggests: any[] = editorSuggest.suggests;
+            const suggests = editorSuggest.suggests;
 
             // Find and remove the built-in tag suggest
             // Identify it by: not our suggest, and its constructor name hints at tags
@@ -157,7 +175,9 @@ export default class TagAliasesPlugin extends Plugin {
             }
 
             // Move our suggest to the front of the array for priority
-            const ourIndex = suggests.findIndex((s: any) => s === this.tagAliasSuggest);
+            const ourIndex = suggests.findIndex(
+                (s: EditorSuggest<unknown>) => s === this.tagAliasSuggest,
+            );
             if (ourIndex > 0) {
                 const [ours] = suggests.splice(ourIndex, 1);
                 suggests.unshift(ours);
@@ -188,10 +208,12 @@ export default class TagAliasesPlugin extends Plugin {
         if (!this.removedBuiltInSuggest) return;
 
         try {
-            const editorSuggest = (this.app.workspace as any).editorSuggest;
+            const workspace = this.app.workspace as unknown as
+                { editorSuggest?: EditorSuggestManager };
+            const editorSuggest = workspace.editorSuggest;
             if (!editorSuggest?.suggests) return;
 
-            const suggests: any[] = editorSuggest.suggests;
+            const suggests = editorSuggest.suggests;
             // Insert back at original position (or end if index is invalid)
             const insertAt = Math.min(this.removedBuiltInSuggestIndex, suggests.length);
             suggests.splice(insertAt, 0, this.removedBuiltInSuggest);
@@ -250,7 +272,9 @@ export default class TagAliasesPlugin extends Plugin {
      */
     private processAutoReplace(changedFile: TFile): void {
         try {
-            const activeEditor = (this.app.workspace as any).activeEditor;
+            const workspace = this.app.workspace as unknown as
+                { activeEditor?: ActiveEditorRef };
+            const activeEditor = workspace.activeEditor;
             const editor = activeEditor?.editor;
             if (!editor) return;
 

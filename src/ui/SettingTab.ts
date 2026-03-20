@@ -11,7 +11,7 @@
 import { App, PluginSettingTab, Setting, Notice } from 'obsidian';
 import TagAliasesPlugin from '../main';
 import { AliasGroup } from '../types';
-import { PLUGIN_NAME, EXPORT_FILE_NAME } from '../constants';
+import { EXPORT_FILE_NAME } from '../constants';
 import { AliasManager } from '../core/AliasManager';
 import { BatchMigration } from '../migration/BatchMigration';
 
@@ -42,7 +42,7 @@ export class TagAliasesSettingTab extends PluginSettingTab {
      * CRUD operations are handled in the sidebar panel.
      */
     private renderAliasGroupSection(container: HTMLElement): void {
-        container.createEl('h2', { text: 'Alias Groups' });
+        new Setting(container).setName('Alias groups').setHeading();
 
         const groups = this.plugin.aliasManager.getGroups();
         const count = groups.length;
@@ -51,10 +51,10 @@ export class TagAliasesSettingTab extends PluginSettingTab {
             .setName(`${count} alias group${count !== 1 ? 's' : ''} configured`)
             .setDesc('Use the sidebar panel to create, edit, and delete alias groups.')
             .addButton(btn => {
-                btn.setButtonText('Open Sidebar')
+                btn.setButtonText('Open sidebar')
                     .setCta()
                     .onClick(() => {
-                        this.plugin.activateSidebarView();
+                        void this.plugin.activateSidebarView();
                     });
             });
     }
@@ -63,7 +63,7 @@ export class TagAliasesSettingTab extends PluginSettingTab {
      * Render the behavior settings section.
      */
     private renderBehaviorSection(container: HTMLElement): void {
-        container.createEl('h2', { text: 'Behavior' });
+        new Setting(container).setName('Behavior').setHeading();
 
         new Setting(container)
             .setName('Auto-replace alias tags')
@@ -85,7 +85,7 @@ export class TagAliasesSettingTab extends PluginSettingTab {
      * Render the data migration section.
      */
     private renderMigrationSection(container: HTMLElement): void {
-        container.createEl('h2', { text: 'Migration' });
+        new Setting(container).setName('Migration').setHeading();
 
         new Setting(container)
             .setName('Scan & replace alias tags in vault')
@@ -94,14 +94,14 @@ export class TagAliasesSettingTab extends PluginSettingTab {
                 'with their primary tags. A preview will be shown before any changes are made.'
             )
             .addButton(btn => {
-                btn.setButtonText('Scan & Replace')
+                btn.setButtonText('Scan & replace')
                     .setWarning()
-                    .onClick(async () => {
+                    .onClick(() => {
                         const migration = new BatchMigration(
                             this.app,
                             this.plugin.aliasManager,
                         );
-                        await migration.run();
+                        void migration.run();
                     });
             });
     }
@@ -110,7 +110,7 @@ export class TagAliasesSettingTab extends PluginSettingTab {
      * Render the backup & restore section.
      */
     private renderBackupSection(container: HTMLElement): void {
-        container.createEl('h2', { text: 'Backup & Restore' });
+        new Setting(container).setName('Backup & restore').setHeading();
 
         // Export button
         new Setting(container)
@@ -121,8 +121,8 @@ export class TagAliasesSettingTab extends PluginSettingTab {
             )
             .addButton(btn => {
                 btn.setButtonText('Export')
-                    .onClick(async () => {
-                        await this.handleExport();
+                    .onClick(() => {
+                        void this.handleExport();
                     });
             });
 
@@ -134,8 +134,8 @@ export class TagAliasesSettingTab extends PluginSettingTab {
             )
             .addButton(btn => {
                 btn.setButtonText('Import')
-                    .onClick(async () => {
-                        await this.handleImport();
+                    .onClick(() => {
+                        this.handleImport();
                     });
             });
     }
@@ -179,66 +179,67 @@ export class TagAliasesSettingTab extends PluginSettingTab {
     /**
      * Import alias groups from a JSON file selected via file input.
      */
-    private async handleImport(): Promise<void> {
+    private handleImport(): void {
         // Create a hidden file input to let user pick a file
         const input = document.createElement('input');
         input.type = 'file';
         input.accept = '.json';
 
-        input.addEventListener('change', async () => {
+        input.addEventListener('change', () => {
             const file = input.files?.[0];
             if (!file) return;
 
-            try {
-                const text = await file.text();
-                const data = JSON.parse(text);
+            void file.text().then(async (text) => {
+                try {
+                    const data = JSON.parse(text) as { aliasGroups?: AliasGroup[] };
 
-                // Validate structure
-                if (!data.aliasGroups || !Array.isArray(data.aliasGroups)) {
-                    new Notice('Invalid file format: missing "aliasGroups" array.');
-                    return;
-                }
-
-                const importedGroups: AliasGroup[] = data.aliasGroups;
-
-                // Validate each group has required fields
-                for (const g of importedGroups) {
-                    if (!g.primaryTag || !Array.isArray(g.aliases)) {
-                        new Notice('Invalid file format: each group must have "primaryTag" and "aliases".');
+                    // Validate structure
+                    if (!data.aliasGroups || !Array.isArray(data.aliasGroups)) {
+                        new Notice('Invalid file format: missing "aliasGroups" array.');
                         return;
                     }
-                    // Ensure each group has an ID
-                    if (!g.id) {
-                        g.id = this.plugin.aliasManager.generateId();
+
+                    const importedGroups: AliasGroup[] = data.aliasGroups;
+
+                    // Validate each group has required fields
+                    for (const g of importedGroups) {
+                        if (!g.primaryTag || !Array.isArray(g.aliases)) {
+                            new Notice('Invalid file format: each group must have "primaryTag" and "aliases".');
+                            return;
+                        }
+                        // Ensure each group has an ID
+                        if (!g.id) {
+                            g.id = this.plugin.aliasManager.generateId();
+                        }
                     }
-                }
 
-                // Validate each group for format and inter-group conflicts
-                const tempManager = new AliasManager();
-                for (const g of importedGroups) {
-                    const error = tempManager.validate(g);
-                    if (error) {
-                        new Notice(`Import failed — group "${g.primaryTag}": ${error}`);
-                        console.warn('[TagAliases] Import validation error:', error, g);
-                        return;
+                    // Validate each group for format and inter-group conflicts
+                    const tempManager = new AliasManager();
+                    for (const g of importedGroups) {
+                        const error = tempManager.validate(g);
+                        if (error) {
+                            new Notice(`Import failed — group "${g.primaryTag}": ${error}`);
+                            console.warn('[TagAliases] Import validation error:', error, g);
+                            return;
+                        }
+                        // Add validated group so subsequent checks detect conflicts
+                        tempManager.addGroup(g);
                     }
-                    // Add validated group so subsequent checks detect conflicts
-                    tempManager.addGroup(g);
+
+                    // Replace current groups with validated imports
+                    this.plugin.settings.aliasGroups = importedGroups;
+                    this.plugin.aliasManager.buildIndex(importedGroups);
+                    await this.plugin.saveSettings();
+
+                    new Notice(`Imported ${importedGroups.length} alias group(s) successfully.`);
+
+                    // Refresh settings panel
+                    this.display();
+                } catch (err) {
+                    console.error('[TagAliases] Import failed:', err);
+                    new Notice('Import failed. Ensure the file is valid JSON.');
                 }
-
-                // Replace current groups with validated imports
-                this.plugin.settings.aliasGroups = importedGroups;
-                this.plugin.aliasManager.buildIndex(importedGroups);
-                await this.plugin.saveSettings();
-
-                new Notice(`Imported ${importedGroups.length} alias group(s) successfully.`);
-
-                // Refresh settings panel
-                this.display();
-            } catch (err) {
-                console.error('[TagAliases] Import failed:', err);
-                new Notice('Import failed. Ensure the file is valid JSON.');
-            }
+            });
         });
 
         input.click();

@@ -55,6 +55,7 @@ export class TagSidebarView extends ItemView {
      * Builds the full sidebar UI: toolbar, conflict banner, and tag list.
      */
     async onOpen(): Promise<void> {
+        await super.onOpen();
         const container = this.containerEl.children[1] as HTMLElement;
         container.empty();
         container.addClass('tag-aliases-sidebar');
@@ -80,6 +81,7 @@ export class TagSidebarView extends ItemView {
     }
 
     async onClose(): Promise<void> {
+        await super.onClose();
         this.containerEl.empty();
     }
 
@@ -170,7 +172,7 @@ export class TagSidebarView extends ItemView {
         // Structural conflicts: user must manually edit groups to resolve
         if (structural.length > 0) {
             const banner = this.bannerContainer.createDiv('tag-aliases-conflict-banner');
-            banner.createEl('strong', { text: '\u26A0 Group conflicts' });
+            banner.createEl('strong', { text: 'Conflicts detected' });
             banner.createEl('p', {
                 text: 'Edit the highlighted groups below to resolve:',
                 cls: 'tag-aliases-conflict-hint',
@@ -486,7 +488,7 @@ export class TagSidebarView extends ItemView {
         // Add alias row: input + add button
         const addRow = panel.createDiv('tag-aliases-sidebar-add-row');
         const addInput = addRow.createEl('input', {
-            attr: { type: 'text', placeholder: 'add alias...' },
+            attr: { type: 'text', placeholder: 'Add alias...' },
         });
 
         const addBtn = addRow.createEl('button', {
@@ -555,7 +557,7 @@ export class TagSidebarView extends ItemView {
         // Add alias row: input + add button
         const addRow = panel.createDiv('tag-aliases-sidebar-add-row');
         const addInput = addRow.createEl('input', {
-            attr: { type: 'text', placeholder: 'add alias...' },
+            attr: { type: 'text', placeholder: 'Add alias...' },
         });
 
         const addBtn = addRow.createEl('button', {

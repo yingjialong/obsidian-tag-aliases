@@ -195,7 +195,7 @@ export class TagAliasesSettingTab extends PluginSettingTab {
 
                     // Validate structure
                     if (!data.aliasGroups || !Array.isArray(data.aliasGroups)) {
-                        new Notice('Invalid file format: missing "aliasGroups" array.');
+                        new Notice('invalid file format: missing "aliasGroups" array.');
 
                         return;
                     }
@@ -205,7 +205,7 @@ export class TagAliasesSettingTab extends PluginSettingTab {
                     // Validate each group has required fields
                     for (const g of importedGroups) {
                         if (!g.primaryTag || !Array.isArray(g.aliases)) {
-                            new Notice('Invalid file format: each group must have "primaryTag" and "aliases".');
+                            new Notice('invalid file format: each group must have "primaryTag" and "aliases".');
 
                             return;
                         }

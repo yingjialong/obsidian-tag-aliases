@@ -1,7 +1,7 @@
 {
 	"id": "tag-aliases",
 	"name": "Tag Aliases",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"minAppVersion": "1.0.0",
 	"description": "Define tag aliases to normalize tags at input time. When you type an alias, the plugin suggests and inserts the primary tag, keeping your vault's tags clean and consistent.",
 	"author": "majiajun",

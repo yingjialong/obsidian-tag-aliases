@@ -112,3 +112,35 @@
 ## 当前结论
 
 当前需要你继续手动操作的事项已经完成。下一步应进入等待审核阶段，除非审核方提出新的阻塞问题，否则不建议继续主动改代码或反复留言。
+
+## 后续跟进记录
+
+### 2026-04-08 队列冲突处理
+
+在 release 与 PR 跟进完成后，`obsidianmd/obsidian-releases` 的 `master` 分支继续新增多个社区插件条目，导致 PR #11180 多次再次出现 `community-plugins.json` 尾部冲突。
+
+这类冲突不是插件代码问题，而是社区插件列表的队列型冲突。处理原则保持一致：
+
+1. 同步最新 `upstream/master`
+2. 保留上游新增的插件条目
+3. 将 `tag-aliases` 条目重新放回数组最后一项
+4. 推送到 PR 分支并等待机器人重新校验
+
+本次后续跟进中，已依次处理并推送以下提交：
+
+- `f9a3ea85`：首次合并上游并解决 `community-plugins.json` 冲突
+- `da3b29d8`：将 `tag-aliases` 挪到列表末尾以满足机器人校验规则
+- `92f4ecf7`：再次同步上游并解决新一轮尾部冲突
+- `4081ae08`：继续同步上游并解决新增 `note-progressbar` 导致的尾部冲突
+
+### 最新状态
+
+- PR 地址：`https://github.com/obsidianmd/obsidian-releases/pull/11180`
+- 最新 PR head：`4081ae080820a7470ab0130dbe2575a4349f5f1c`
+- merge 状态：`MERGEABLE`
+- mergeStateStatus：`CLEAN`
+- `plugin-validation`：通过
+
+### 补充说明
+
+这个 PR 后续如果继续长时间停留在队列中，仍然可能因为上游继续改 `community-plugins.json` 而再次变脏。这是该仓库工作流本身的问题，不是当前插件实现质量的直接反映。

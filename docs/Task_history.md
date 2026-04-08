@@ -14,4 +14,4 @@
 | phase7-export-import | Phase 7: 导出/导入 | 2026-03-15 | 已在 Phase 3 SettingTab 中实现（handleExport/handleImport），JSON 文件备份恢复 | 已完成 |
 | phase8-finalize | Phase 8: 收尾 | 2026-03-15 | 完善 CLAUDE.md 架构说明、更新 Task_history、代码自检（英文注释/日志完整性） | 已完成 |
 | full-code-review | 项目全量代码审查 | 2026-03-16 | 阅读 README 与任务文档、全量审查核心源码与配置、执行构建验证、输出分级 findings | 已完成，结论为 Request Changes |
-| pr-11180-update | 更新 Obsidian 社区插件审核 PR #11180 | 2026-04-08 | 核查 PR 状态、升级补丁版本、发布新 release 资产、在审核 PR 跟进说明 | 进行中 |
+| pr-11180-update | 更新 Obsidian 社区插件审核 PR #11180 | 2026-04-08 | 核查 PR 状态、升级补丁版本、发布新 release 资产、在审核 PR 跟进说明 | 已完成，已发布 0.1.1 并完成 PR 跟进 |

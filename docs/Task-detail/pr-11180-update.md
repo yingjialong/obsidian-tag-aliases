@@ -144,3 +144,25 @@
 ### 补充说明
 
 这个 PR 后续如果继续长时间停留在队列中，仍然可能因为上游继续改 `community-plugins.json` 而再次变脏。这是该仓库工作流本身的问题，不是当前插件实现质量的直接反映。
+
+### 2026-04-12 队列冲突处理
+
+`obsidianmd/obsidian-releases` 的 `master` 在 2026-04-12 再次前进，新增了 `wpm-reading-time` 插件条目，导致 PR #11180 再次因为 `community-plugins.json` 尾部冲突而变为 `DIRTY / CONFLICTING`。
+
+本轮处理仍然遵循最小变更原则：
+
+1. 同步最新 `upstream/master`
+2. 保留上游新增的 `wpm-reading-time` 条目
+3. 将 `tag-aliases` 重新放回数组最后一项
+4. 完成 merge commit 并推送到 `add-tag-aliases-plugin`
+
+本轮新增提交：
+
+- `9260249b`：合并最新 `upstream/master` 并解决 `wpm-reading-time` 导致的尾部冲突
+
+处理后的实时状态：
+
+- PR head：`9260249b1bf438ea6fff1dabc6fac93050b6172a`
+- merge 状态：`MERGEABLE`
+- mergeStateStatus：`CLEAN`
+- `plugin-validation`：通过

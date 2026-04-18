@@ -166,3 +166,28 @@
 - merge 状态：`MERGEABLE`
 - mergeStateStatus：`CLEAN`
 - `plugin-validation`：通过
+
+### 2026-04-18 审核跟进评论
+
+截至 2026-04-18，再次核查 `obsidianmd/obsidian-releases#11180` 时：
+
+- PR 仍为 `OPEN`
+- `plugin-validation` 仍然通过
+- 没有新的人工 reviewer 评论
+- 最后一次人工跟进仍停留在 2026-04-08
+
+进一步核查表明，上游 `master` 虽然继续前进，但新增内容仅涉及 `community-plugin-stats.json`，本地无提交 merge 模拟可以正常自动合并，没有新的内容冲突需要立即处理。
+
+基于以上状态，采取的动作不是再次修冲突，而是发一条简短英文 follow-up 评论，提醒审核方当前 PR 已更新、release 已发布、checks 已通过，请告知是否还有阻塞项。
+
+本轮新增跟进：
+
+- 评论地址：`https://github.com/obsidianmd/obsidian-releases/pull/11180#issuecomment-4273237897`
+- 评论内容：`Hi, just following up on this submission. The PR has been updated, the latest release assets are published, and checks are passing. Please let me know if anything else is blocking review. Thank you.`
+
+本轮结论：
+
+- 当前不需要继续改插件代码
+- 当前不需要重新发 release
+- 当前不需要再次主动解决冲突
+- 下一步继续等待人工审核反馈

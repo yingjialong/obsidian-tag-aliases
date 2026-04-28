@@ -40,6 +40,8 @@ export class TagSidebarView extends ItemView {
     private listContainer: HTMLElement | null = null;
     /** DOM reference to the conflict banner area. */
     private bannerContainer: HTMLElement | null = null;
+    /** Whether a metadata refresh was deferred while an alias input had focus. */
+    private pendingListRefresh = false;
 
     constructor(leaf: WorkspaceLeaf, plugin: TagAliasesPlugin) {
         super(leaf);
@@ -71,7 +73,7 @@ export class TagSidebarView extends ItemView {
 
         // Auto-refresh when MetadataCache finishes re-indexing files
         // (e.g., after batch migration or manual tag edits in notes)
-        const debouncedRefresh = debounce(() => this.refresh(), 500, true);
+        const debouncedRefresh = debounce(() => this.refreshFromMetadata(), 500, true);
         this.registerEvent(
             this.app.metadataCache.on('resolved', debouncedRefresh),
         );
@@ -90,6 +92,7 @@ export class TagSidebarView extends ItemView {
      * Called after any data mutation (add/remove alias, delete group, etc.).
      */
     public refresh(): void {
+        this.pendingListRefresh = false;
         const displayList = this.buildDisplayList();
         // Pass vault tags so ConflictChecker can detect unmigrated aliases
         const vaultTags = this.getVaultTags();
@@ -97,6 +100,60 @@ export class TagSidebarView extends ItemView {
 
         this.renderConflictBanner(conflicts);
         this.renderTagList(displayList);
+    }
+
+    /**
+     * Refresh the sidebar after metadata changes without destroying active alias input.
+     * Metadata updates are frequent, so list rendering is deferred while the user is
+     * typing a new alias and replayed once that input loses focus.
+     */
+    private refreshFromMetadata(): void {
+        const vaultTags = this.getVaultTags();
+        const conflicts = checkConflicts(this.plugin.aliasManager.getGroups(), vaultTags);
+        this.renderConflictBanner(conflicts);
+
+        if (this.isAliasInputFocused()) {
+            this.pendingListRefresh = true;
+            console.debug('[TagAliases] Deferred sidebar list refresh while alias input is focused.');
+            return;
+        }
+
+        this.pendingListRefresh = false;
+        const displayList = this.buildDisplayList();
+        this.renderTagList(displayList);
+    }
+
+    /**
+     * Check whether the active element is one of the add-alias inputs.
+     */
+    private isAliasInputFocused(): boolean {
+        const activeElement = document.activeElement;
+        if (!(activeElement instanceof HTMLInputElement)) {
+            return false;
+        }
+
+        return this.containerEl.contains(activeElement)
+            && activeElement.closest('.tag-aliases-sidebar-add-row') !== null;
+    }
+
+    /**
+     * Register shared behavior for add-alias inputs.
+     */
+    private registerAliasInputHandlers(addInput: HTMLInputElement): void {
+        // Prevent input clicks from toggling expand/collapse.
+        addInput.addEventListener('click', (e) => e.stopPropagation());
+
+        addInput.addEventListener('blur', () => {
+            if (!this.pendingListRefresh) {
+                return;
+            }
+
+            window.setTimeout(() => {
+                if (!this.isAliasInputFocused() && this.pendingListRefresh) {
+                    this.refresh();
+                }
+            }, 0);
+        });
     }
 
     // ──────────────────────────────────────────────
@@ -523,8 +580,7 @@ export class TagSidebarView extends ItemView {
             }
         });
 
-        // Prevent input clicks from toggling expand/collapse
-        addInput.addEventListener('click', (e) => e.stopPropagation());
+        this.registerAliasInputHandlers(addInput);
 
         // Delete group button
         const deleteGroupBtn = panel.createEl('button', {
@@ -594,8 +650,7 @@ export class TagSidebarView extends ItemView {
             }
         });
 
-        // Prevent input clicks from toggling expand/collapse
-        addInput.addEventListener('click', (e) => e.stopPropagation());
+        this.registerAliasInputHandlers(addInput);
 
         // Cancel button to collapse without creating
         const cancelBtn = panel.createEl('button', {

@@ -119,18 +119,23 @@ function replaceInNormalText(
     //   3. Complete HTML comment       — <!-- ... -->
     //   4. Unclosed HTML comment start — <!-- to end of line
     //   5. Target tag to replace
+    //
+    // Tag boundaries use a deny-list of Obsidian tag characters instead of
+    // enumerating allowed punctuation. This keeps migration aligned with
+    // MetadataCache tag detection for tags wrapped in brackets, quotes, or
+    // followed by punctuation such as ':'.
     const regex = new RegExp(
         '(`{2,})([\\s\\S]*?)\\1' +
         '|`[^`]+`' +
         '|<!--[\\s\\S]*?-->' +
         '|<!--.*$' +
-        `|((^|[\\s])${escapedFrom}(?=[\\s,;.!?\\)\\]\\}]|$))`,
+        `|((?<![\\p{L}\\p{N}_\\-/#])${escapedFrom}(?![\\p{L}\\p{N}_\\-/]))`,
         'gu',
     );
 
     const result = text.replace(
         regex,
-        (match, _multiTick, _multiContent, tag, prefix) => {
+        (match, _multiTick, _multiContent, tag) => {
             // Unclosed HTML comment — preserve and flag multi-line state
             if (match.startsWith('<!--') && !match.includes('-->')) {
                 endsInComment = true;
@@ -138,7 +143,7 @@ function replaceInNormalText(
             }
             // Tag match — replace with primary tag
             if (tag !== undefined) {
-                return (prefix || '') + to;
+                return to;
             }
             // All other matches (inline code, complete comment) — preserve
             return match;

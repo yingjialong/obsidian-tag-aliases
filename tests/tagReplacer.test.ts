@@ -59,6 +59,22 @@ describe('normal replacement', () => {
         expect(r('{ #js}')).toBe('{ #javascript}');
     });
 
+    test('tag wrapped by brackets without spaces', () => {
+        expect(r('[#js]')).toBe('[#javascript]');
+        expect(r('{#js}')).toBe('{#javascript}');
+        expect(r('(#js)')).toBe('(#javascript)');
+    });
+
+    test('tag wrapped by quotes', () => {
+        expect(r('"#js"')).toBe('"#javascript"');
+        expect(r("'#js'")).toBe("'#javascript'");
+    });
+
+    test('tag followed by additional non-tag punctuation', () => {
+        expect(r('#js:detail')).toBe('#javascript:detail');
+        expect(r('<#js>')).toBe('<#javascript>');
+    });
+
     test('multiple occurrences on same line', () => {
         expect(r('#js and #js')).toBe('#javascript and #javascript');
     });
@@ -83,13 +99,8 @@ describe('normal replacement', () => {
 
 describe('non-tag text (should not replace)', () => {
     test('tag-like text not preceded by whitespace or start-of-line', () => {
-        // "word#js" — '#' is preceded by a letter, not whitespace
+        // "word#js" — '#' is preceded by a tag character, so it is not a standalone tag.
         expect(r('word#js')).toBe('word#js');
-    });
-
-    test('tag directly after bracket/brace (no space)', () => {
-        expect(r('[#js]')).toBe('[#js]');
-        expect(r('{#js}')).toBe('{#js}');
     });
 
     test('partial tag match (longer tag name)', () => {
@@ -492,8 +503,8 @@ describe('edge cases', () => {
     });
 
     test('tag adjacent to inline code (no space between)', () => {
-        // `code`#js — the # is preceded by `, not whitespace
-        expect(r('`code`#js')).toBe('`code`#js');
+        // The inline code span stays protected; the adjacent standalone tag is replaced.
+        expect(r('`code`#js')).toBe('`code`#javascript');
     });
 
     test('multiple replacements do not interfere', () => {

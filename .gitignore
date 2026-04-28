@@ -4,6 +4,10 @@ main.js
 # Plugin runtime data (user-specific settings)
 data.json
 
+# Local task details and review artifacts
+docs/Task-detail/
+.claude-review-loop/
+
 # Node modules
 node_modules/
 

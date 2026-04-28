@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-tag-aliases",
-	"version": "0.1.1",
+	"version": "0.1.3",
 	"description": "Obsidian plugin for defining tag aliases. Normalizes tags at input time by suggesting primary tags when aliases are typed.",
 	"main": "main.js",
 	"scripts": {

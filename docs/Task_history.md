@@ -14,6 +14,7 @@
 | phase7-export-import | Phase 7: 导出/导入 | 2026-03-15 | 已在 Phase 3 SettingTab 中实现（handleExport/handleImport），JSON 文件备份恢复 | 已完成 |
 | phase8-finalize | Phase 8: 收尾 | 2026-03-15 | 完善 CLAUDE.md 架构说明、更新 Task_history、代码自检（英文注释/日志完整性） | 已完成 |
 | full-code-review | 项目全量代码审查 | 2026-03-16 | 阅读 README 与任务文档、全量审查核心源码与配置、执行构建验证、输出分级 findings | 已完成，结论为 Request Changes |
-| pr-11180-update | 更新 Obsidian 社区插件审核 PR #11180 | 2026-04-08 | 核查 PR 状态、升级补丁版本、发布新 release 资产、在审核 PR 跟进说明 | 已完成，已发布 0.1.1 并完成 PR 跟进 |
+| pr-11180-update | 更新 Obsidian 社区插件审核 PR #11180 | 2026-04-08 | 核查 PR 状态、升级补丁版本、发布新 release 资产、在审核 PR 跟进说明，并持续处理社区插件列表队列冲突与新 Community Portal 迁移 | 已完成，旧 PR 于 2026-05-16 被自动关闭并迁移到新 Portal，状态为 Migration pending review |
 | claude-loop-project-code-review | Claude Review Loop 项目代码审查与修复 | 2026-04-28 | 使用 Claude Opus 作为只读 reviewer，Codex 分拣并修复接受项，执行 2 轮审查；修复批量迁移边界与侧边栏输入刷新问题 | 已完成，Round 2 Claude approve；测试与构建通过 |
 | release-0.1.3 | 发布 0.1.3 并同步 Obsidian 审核 PR | 2026-04-28 | 升级版本、构建发布资产、推送插件仓库、创建 GitHub release，并同步处理 `obsidian-releases#11180` | 已完成，release 0.1.3 已发布；PR 分支已同步且 plugin-validation 通过 |
+| community-portal-review-fixes | 修复 Obsidian Community Portal 自动审核问题 | 2026-05-16 | 核对 Portal 自动审核反馈，修复阻塞 error 与主要 warning，准备发布新版 | 进行中 |

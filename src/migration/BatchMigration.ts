@@ -13,6 +13,11 @@ import { App, CachedMetadata, Modal, Notice, TFile, getAllTags } from 'obsidian'
 import { AliasManager } from '../core/AliasManager';
 import { MigrationPlan, MigrationChange, MigrationReplacement } from '../types';
 import { replaceTagsOutsideCode } from './tagReplacer';
+import {
+    frontmatterTagMatches,
+    normalizeFrontmatterTags,
+    toHashPrefixedTag,
+} from '../core/frontmatterTags';
 
 export class BatchMigration {
     private app: App;
@@ -114,14 +119,8 @@ export class BatchMigration {
      * Check if a tag exists in the file's YAML frontmatter.
      */
     private isTagInFrontmatter(tag: string, cache: CachedMetadata): boolean {
-        if (!cache.frontmatter?.tags) return false;
-
-        const fmTags: string[] = Array.isArray(cache.frontmatter.tags)
-            ? cache.frontmatter.tags
-            : [cache.frontmatter.tags];
-
-        const tagName = tag.replace(/^#/, '').toLowerCase();
-        return fmTags.some(t => t.toLowerCase() === tagName);
+        const fmTags = normalizeFrontmatterTags(cache.frontmatter?.['tags']);
+        return fmTags.some(t => frontmatterTagMatches(t, tag));
     }
 
     /**
@@ -179,14 +178,13 @@ export class BatchMigration {
 
                 // Replace frontmatter tags
                 if (fmReplacements.length > 0) {
-                    await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
-                        if (!frontmatter.tags) return;
-                        const tags: string[] = Array.isArray(frontmatter.tags)
-                            ? frontmatter.tags
-                            : [frontmatter.tags];
+                    await this.app.fileManager.processFrontMatter(file, (frontmatterData: unknown) => {
+                        const frontmatter = frontmatterData as Record<string, unknown>;
+                        const tags = normalizeFrontmatterTags(frontmatter['tags']);
+                        if (tags.length === 0) return;
 
                         for (let i = 0; i < tags.length; i++) {
-                            const tagWithHash = tags[i].startsWith('#') ? tags[i] : `#${tags[i]}`;
+                            const tagWithHash = toHashPrefixedTag(tags[i]);
                             const replacement = fmReplacements.find(
                                 r => r.from.toLowerCase() === tagWithHash.toLowerCase(),
                             );
@@ -194,7 +192,7 @@ export class BatchMigration {
                                 tags[i] = replacement.to.replace(/^#/, '');
                             }
                         }
-                        frontmatter.tags = tags;
+                        frontmatter['tags'] = tags;
                     });
                 }
 

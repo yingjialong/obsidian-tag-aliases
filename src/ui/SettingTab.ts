@@ -181,9 +181,10 @@ export class TagAliasesSettingTab extends PluginSettingTab {
      */
     private handleImport(): void {
         // Create a hidden file input to let user pick a file
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = '.json';
+        const input = this.containerEl.createEl('input', {
+            cls: 'tag-aliases-hidden-file-input',
+            attr: { type: 'file', accept: '.json' },
+        });
 
         input.addEventListener('change', () => {
             const file = input.files?.[0];
@@ -240,6 +241,8 @@ export class TagAliasesSettingTab extends PluginSettingTab {
                 } catch (err) {
                     console.error('[TagAliases] Import failed:', err);
                     new Notice('Import failed. Ensure the file is valid JSON.');
+                } finally {
+                    input.remove();
                 }
             });
         });

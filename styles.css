@@ -1,5 +1,10 @@
 /* Tag Aliases plugin styles */
 
+/* Hidden input used for JSON import file selection */
+.tag-aliases-hidden-file-input {
+    display: none;
+}
+
 /* ── Migration Preview Modal ── */
 
 .tag-aliases-migration-list {

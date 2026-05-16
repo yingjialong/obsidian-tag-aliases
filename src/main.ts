@@ -7,7 +7,7 @@
  */
 
 import { EditorSuggest, Plugin, TFile, debounce } from 'obsidian';
-import { TagAliasSettings } from './types';
+import { AliasGroup, TagAliasSettings } from './types';
 import { DEFAULT_SETTINGS, VIEW_TYPE_TAG_ALIASES } from './constants';
 import { AliasManager } from './core/AliasManager';
 import { TagAliasesSettingTab } from './ui/SettingTab';
@@ -30,6 +30,47 @@ interface EditorSuggestManager {
 interface ActiveEditorRef {
     editor?: import('obsidian').Editor;
     file?: TFile;
+}
+
+/**
+ * Check whether a value looks like an alias group from persisted settings.
+ */
+function isAliasGroup(value: unknown): value is AliasGroup {
+    if (!value || typeof value !== 'object') return false;
+
+    const group = value as Partial<AliasGroup>;
+    return typeof group.id === 'string'
+        && typeof group.primaryTag === 'string'
+        && Array.isArray(group.aliases)
+        && group.aliases.every(alias => typeof alias === 'string')
+        && (
+            group.description === undefined
+            || typeof group.description === 'string'
+        );
+}
+
+/**
+ * Normalize untyped persisted data into the current settings schema.
+ */
+function normalizeSettings(data: unknown): TagAliasSettings {
+    const defaults: TagAliasSettings = {
+        aliasGroups: [...DEFAULT_SETTINGS.aliasGroups],
+        autoReplace: DEFAULT_SETTINGS.autoReplace,
+    };
+
+    if (!data || typeof data !== 'object') {
+        return defaults;
+    }
+
+    const record = data as Record<string, unknown>;
+    return {
+        aliasGroups: Array.isArray(record.aliasGroups)
+            ? record.aliasGroups.filter(isAliasGroup)
+            : defaults.aliasGroups,
+        autoReplace: typeof record.autoReplace === 'boolean'
+            ? record.autoReplace
+            : defaults.autoReplace,
+    };
 }
 
 export default class TagAliasesPlugin extends Plugin {
@@ -110,8 +151,8 @@ export default class TagAliasesPlugin extends Plugin {
      * Load settings from disk, merging with defaults for any missing fields.
      */
     async loadSettings(): Promise<void> {
-        const data = await this.loadData();
-        this.settings = Object.assign({}, DEFAULT_SETTINGS, data);
+        const data: unknown = await this.loadData();
+        this.settings = normalizeSettings(data);
     }
 
     /**
@@ -134,7 +175,7 @@ export default class TagAliasesPlugin extends Plugin {
             await rightLeaf.setViewState({ type: VIEW_TYPE_TAG_ALIASES, active: true });
             leaf = rightLeaf;
         }
-        void workspace.revealLeaf(leaf);
+        await workspace.revealLeaf(leaf);
     }
 
     /**
@@ -318,8 +359,7 @@ export default class TagAliasesPlugin extends Plugin {
                 { line: cursor.line, ch: tagEndCh },
             );
 
-
-            setTimeout(() => {
+            activeWindow.setTimeout(() => {
                 this.isReplacing = false;
             }, 500);
         } catch (err) {

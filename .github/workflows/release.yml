@@ -1,0 +1,73 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version, for example 0.1.4"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  release:
+    name: Build, attest, and publish release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify release version
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const version = process.env.RELEASE_VERSION;
+          const manifest = JSON.parse(fs.readFileSync('manifest.json', 'utf8'));
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+
+          if (manifest.version !== version || pkg.version !== version) {
+            console.error(`Version mismatch. input=${version} manifest=${manifest.version} package=${pkg.version}`);
+            process.exit(1);
+          }
+          NODE
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build release assets
+        run: npm run build
+
+      - name: Generate artifact attestations
+        uses: actions/attest@v4
+        with:
+          subject-path: |
+            main.js
+            manifest.json
+            styles.css
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          gh release create "$RELEASE_VERSION" \
+            main.js manifest.json styles.css \
+            --title "$RELEASE_VERSION" \
+            --notes "Release $RELEASE_VERSION for Obsidian Community Portal review."

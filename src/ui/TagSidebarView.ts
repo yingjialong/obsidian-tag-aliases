@@ -127,8 +127,8 @@ export class TagSidebarView extends ItemView {
      * Check whether the active element is one of the add-alias inputs.
      */
     private isAliasInputFocused(): boolean {
-        const activeElement = document.activeElement;
-        if (!(activeElement instanceof HTMLInputElement)) {
+        const activeElement = this.containerEl.doc.activeElement;
+        if (!activeElement?.instanceOf(HTMLInputElement)) {
             return false;
         }
 
@@ -148,7 +148,7 @@ export class TagSidebarView extends ItemView {
                 return;
             }
 
-            window.setTimeout(() => {
+            addInput.win.setTimeout(() => {
                 if (!this.isAliasInputFocused() && this.pendingListRefresh) {
                     this.refresh();
                 }
@@ -521,7 +521,7 @@ export class TagSidebarView extends ItemView {
      * Render the expanded edit panel for an existing alias group.
      * Shows alias rows with delete buttons, an add-alias input, and a delete group button.
      */
-    private renderEditPanel(parent: HTMLElement, group: AliasGroup, tag: string): void {
+    private renderEditPanel(parent: HTMLElement, group: AliasGroup, _tag: string): void {
         const panel = parent.createDiv('tag-aliases-sidebar-edit-panel');
 
         // Render each alias with a delete button (display without '#')

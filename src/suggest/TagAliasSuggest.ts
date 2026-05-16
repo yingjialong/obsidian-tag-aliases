@@ -20,6 +20,7 @@ import {
 } from 'obsidian';
 import { TagSuggestionItem } from '../types';
 import { AliasManager } from '../core/AliasManager';
+import { normalizeFrontmatterTags, toHashPrefixedTag } from '../core/frontmatterTags';
 
 export class TagAliasSuggest extends EditorSuggest<TagSuggestionItem> {
     private aliasManager: AliasManager;
@@ -40,7 +41,7 @@ export class TagAliasSuggest extends EditorSuggest<TagSuggestionItem> {
     onTrigger(
         cursor: EditorPosition,
         editor: Editor,
-        file: TFile | null,
+        _file: TFile | null,
     ): EditorSuggestTriggerInfo | null {
         const line = editor.getLine(cursor.line);
         const textBeforeCursor = line.substring(0, cursor.ch);
@@ -198,7 +199,7 @@ export class TagAliasSuggest extends EditorSuggest<TagSuggestionItem> {
      */
     selectSuggestion(
         item: TagSuggestionItem,
-        evt: MouseEvent | KeyboardEvent,
+        _evt: MouseEvent | KeyboardEvent,
     ): void {
         if (!this.context) return;
 
@@ -249,12 +250,10 @@ export class TagAliasSuggest extends EditorSuggest<TagSuggestionItem> {
             }
 
             // Frontmatter tags
-            if (cache.frontmatter?.tags) {
-                const fmTags = Array.isArray(cache.frontmatter.tags)
-                    ? cache.frontmatter.tags
-                    : [cache.frontmatter.tags];
+            const fmTags = normalizeFrontmatterTags(cache.frontmatter?.['tags']);
+            if (fmTags.length > 0) {
                 for (const t of fmTags) {
-                    const tag = t.startsWith('#') ? t : `#${t}`;
+                    const tag = toHashPrefixedTag(t);
                     tags[tag] = (tags[tag] ?? 0) + 1;
                 }
             }
